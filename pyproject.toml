@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=65.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geneweaver"
+version = "1.0.0"
+description = "GPU-Accelerated CRISPR Alignment Engine using Numba CUDA and Distributed Dask"
+readme = "README.md"
+authors = [
+    { name = "Infotact Bioinformatics HPC Team" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "numba>=0.59.0",
+    "numpy>=1.26.0",
+    "biopython>=1.83",
+    "textual>=0.53.0",
+    "rich>=13.7.0",
+    "nvidia-ml-py>=12.535.133",
+    "dask>=2024.3.0",
+    "distributed>=2024.3.0",
+    "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "dask-cuda>=24.2.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "textual-dev>=1.5.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+]
+
+[project.scripts]
+geneweaver = "geneweaver.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

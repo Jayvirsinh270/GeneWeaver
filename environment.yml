@@ -1,0 +1,23 @@
+name: geneweaver
+channels:
+  - conda-forge
+  - nvidia
+  - defaults
+dependencies:
+  - python=3.11
+  - cuda-toolkit=12.4
+  - numba>=0.59.0
+  - cudatoolkit
+  - numpy>=1.26.0
+  - pip
+  - pip:
+      - biopython>=1.83
+      - textual>=0.53.0
+      - textual-dev>=1.5.0
+      - rich>=13.7.0
+      - nvidia-ml-py>=12.535.133
+      - dask>=2024.3.0
+      - distributed>=2024.3.0
+      - dask-cuda>=24.2.0
+      - pyyaml>=6.0.1
+      - pytest>=8.0.0

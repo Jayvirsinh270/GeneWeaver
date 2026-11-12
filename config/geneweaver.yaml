@@ -1,0 +1,29 @@
+# GeneWeaver Production Configuration
+engine:
+  mode: "gpu"                     # Options: "gpu", "multi_gpu", "cpu_fallback"
+  device_ids: [0]                 # CUDA device IDs to bind
+  threads_per_block: 256          # CUDA thread block size (256 or 512)
+  chunk_size_mb: 50               # Genomic chunk partition size
+  overlap_bp: 22                  # (Guide 20nt + PAM 3nt - 1) seam overlap
+  stream_buffers: 2               # Asynchronous CUDA stream double buffering
+  pinned_host_memory: true        # Use cuda.pinned_array for direct PCIe DMA
+
+biology:
+  target_guide: "GAGTCCGAGCAGAAGAAGAA" # 20nt spacer sequence
+  pam_motif: "NGG"                # PAM motif (e.g., NGG for SpCas9)
+  max_mismatches: 4               # Maximum mismatch tolerance (0-6)
+  scoring_model: "hsu_zhang"      # "hsu_zhang" or "cfd"
+  score_threshold: 0.01           # Cutoff threshold for reporting candidates
+  filter_ambiguous: true          # Reject windows containing 'N' or non-canonical bases
+
+dask:
+  scheduler_port: 8786
+  dashboard_port: 8787
+  device_memory_limit: 0.80       # Safety factor (80% max VRAM)
+  spill_to_disk: true
+  scratch_dir: "./tmp/dask_scratch"
+
+tui:
+  refresh_rate_hz: 10             # Hardware monitor polling frequency
+  color_mismatches: true          # Bold red ANSI highlights
+  max_table_rows: 5000            # In-memory candidate table limit
