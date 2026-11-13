@@ -99,6 +99,24 @@ Deep technical blueprints, math formulations, and code specifications are docume
 | **[06. Weekly Implementation Roadmap](docs/06_IMPLEMENTATION_ROADMAP_WEEKLY.md)** | Day-by-day developer sprint playbook, deliverables, and acceptance criteria for Weeks 1 through 4. |
 | **[07. Benchmarking, Validation & Nsight Profiling](docs/07_BENCHMARKING_AND_VALIDATION.md)** | Performance verification benchmarks, synthetic spike-in accuracy tests, and NVIDIA `nsys`/`ncu` profiling. |
 | **[08. Developer Setup & Troubleshooting Runbook](docs/08_DEVELOPER_SETUP_AND_TROUBLESHOOTING.md)** | Environment prerequisites, Conda install instructions, config templates, and common pitfall solutions. |
+| **[09. Dual-Interface TUI & Web GUI Blueprint](docs/09_DUAL_INTERFACE_TUI_AND_WEB_GUI.md)** | Design tokens, color codes (HEX/RGB), wireframe sketches, Manhattan plot, and Streamlit Web GUI. |
+
+---
+
+## 🖥️ Dual-Interface Experience: Terminal TUI & Web GUI
+
+GeneWeaver provides two synchronized interface modes powered by the same GPU engine:
+
+<div align="center">
+
+![GeneWeaver Dual Interface Preview](docs/assets/geneweaver_dual_interface_preview.png)
+
+*Terminal TUI (Left) for remote HPC/SSH execution | Modern Web GUI Dashboard (Right) for browser visualization*
+
+</div>
+
+* **Textual Terminal UI (`--tui`):** 60 FPS keyboard-driven terminal dashboard with live NVML GPU dials, ASCII progress meters, and ANSI 24-bit color sequence viewers.
+* **Modern Web GUI (`--web`):** Interactive browser dashboard with `.fasta` file drag-and-drop, interactive whole-genome Manhattan scatter plots, risk donut charts, and one-click CSV/VCF clinical report downloads.
 
 ---
 
