@@ -260,13 +260,21 @@ if start_btn:
             time.sleep(0.2)
             progress_bar.empty()
 
-            st.session_state.df_hits = pd.DataFrame(scored_records)
+            COLUMNS = [
+                "Chromosome", "Position", "Strand", "Mismatches",
+                "Hsu_Score", "CFD_Score", "Risk_Tier", "Sequence"
+            ]
+            if scored_records:
+                st.session_state.df_hits = pd.DataFrame(scored_records)
+            else:
+                st.session_state.df_hits = pd.DataFrame(columns=COLUMNS)
+
             st.session_state.metrics = {
                 "elapsed": elapsed,
                 "total_bp": metrics.total_base_pairs,
                 "throughput_mbp": (metrics.total_base_pairs / 1e6) / elapsed if elapsed > 0 else 0.0,
                 "total_candidates": len(scored_records),
-                "high_risk_count": sum(1 for r in scored_records if r["Risk_Tier"] == "HIGH_RISK"),
+                "high_risk_count": sum(1 for r in scored_records if r.get("Risk_Tier") == "HIGH_RISK"),
                 "guide_used": clean_guide,
                 "pam_used": clean_pam,
                 "disease_name": st.session_state.selected_disease_name
@@ -438,6 +446,8 @@ with tab2:
             </div>
         </div>
         """, unsafe_allow_html=True)
+    elif st.session_state.scan_completed:
+        st.info("Zero off-target mutations detected to inspect. Target sequence is 100% specific in this genomic region!")
     else:
         st.info("Run an alignment scan to inspect nucleotide mismatches.")
 
@@ -445,33 +455,36 @@ with tab2:
 with tab3:
     if st.session_state.scan_completed and st.session_state.df_hits is not None:
         df = st.session_state.df_hits
-        st.subheader("Filter and Search Discovered Candidates")
+        if len(df) == 0:
+            st.success("🎉 **Zero Off-Target Mutations Detected!** No candidates matching tolerance thresholds.")
+        else:
+            st.subheader("Filter and Search Discovered Candidates")
 
-        # Filters
-        fcol1, fcol2, fcol3 = st.columns(3)
-        with fcol1:
-            tier_filter = st.multiselect(
-                "Filter by Risk Tier",
-                options=["HIGH_RISK", "MODERATE_RISK", "LOW_RISK", "BENIGN"],
-                default=["HIGH_RISK", "MODERATE_RISK", "LOW_RISK", "BENIGN"]
+            # Filters
+            fcol1, fcol2, fcol3 = st.columns(3)
+            with fcol1:
+                tier_filter = st.multiselect(
+                    "Filter by Risk Tier",
+                    options=["HIGH_RISK", "MODERATE_RISK", "LOW_RISK", "BENIGN"],
+                    default=["HIGH_RISK", "MODERATE_RISK", "LOW_RISK", "BENIGN"]
+                )
+            with fcol2:
+                max_m_filter = st.slider("Filter Max Mismatches", 0, max_mismatches, max_mismatches)
+            with fcol3:
+                search_query = st.text_input("Search Coordinates / Motifs", "")
+
+            filtered_df = df[df["Risk_Tier"].isin(tier_filter) & (df["Mismatches"] <= max_m_filter)] if "Risk_Tier" in df.columns else df
+            if search_query and len(filtered_df) > 0:
+                filtered_df = filtered_df[
+                    filtered_df["Chromosome"].str.contains(search_query, case=False) |
+                    filtered_df["Sequence"].str.contains(search_query, case=False) |
+                    filtered_df["Position"].astype(str).str.contains(search_query)
+                ]
+
+            st.dataframe(
+                filtered_df.sort_values(by="Hsu_Score", ascending=False),
+                use_container_width=True
             )
-        with fcol2:
-            max_m_filter = st.slider("Filter Max Mismatches", 0, max_mismatches, max_mismatches)
-        with fcol3:
-            search_query = st.text_input("Search Coordinates / Motifs", "")
-
-        filtered_df = df[df["Risk_Tier"].isin(tier_filter) & (df["Mismatches"] <= max_m_filter)]
-        if search_query:
-            filtered_df = filtered_df[
-                filtered_df["Chromosome"].str.contains(search_query, case=False) |
-                filtered_df["Sequence"].str.contains(search_query, case=False) |
-                filtered_df["Position"].astype(str).str.contains(search_query)
-            ]
-
-        st.dataframe(
-            filtered_df.sort_values(by="Hsu_Score", ascending=False),
-            use_container_width=True
-        )
     else:
         st.info("Run a scan to view tabular data.")
 
@@ -500,7 +513,7 @@ with tab4:
 # ----------------- TAB 5: CLINICAL REPORT & EXPORT -----------------
 with tab5:
     st.subheader("Exportable Clinical Deliverables")
-    if st.session_state.scan_completed and st.session_state.df_hits is not None:
+    if st.session_state.scan_completed and st.session_state.df_hits is not None and len(st.session_state.df_hits) > 0:
         df = st.session_state.df_hits
         m = st.session_state.metrics
 
@@ -549,5 +562,7 @@ TOP REPORTED OFF-TARGET SITES:
                 mime="text/plain",
                 use_container_width=True
             )
+    elif st.session_state.scan_completed:
+        st.info("Zero off-target mutations detected to export. Target sequence is 100% specific!")
     else:
         st.info("Execute a scan to generate clinical export files.")
