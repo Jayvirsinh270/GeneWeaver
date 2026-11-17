@@ -35,6 +35,12 @@ PRESETS = {
 }
 
 
+def _mutate_base(c: str) -> str:
+    """Returns a guaranteed nucleotide mismatch for synthetic spike injection."""
+    mapping = {"A": "G", "C": "T", "G": "A", "T": "C"}
+    return mapping.get(c.upper(), "C")
+
+
 class ReferenceManager:
     """Manages local availability of reference genomes and synthetic benchmark sequences."""
     def __init__(self, data_dir: str = REFERENCE_DIR):
@@ -44,24 +50,42 @@ class ReferenceManager:
     def get_preset_path(self, preset_key: str, default_guide: str = "GAGTCCGAGCAGAAGAAGAA") -> str:
         """
         Retrieves path to a preset FASTA file.
-        If the file does not exist locally, generates it deterministically with known spike mutations.
+        If the file does not exist locally, generates it deterministically with known spike mutations
+        tailored to the active guide sequence.
         """
         if preset_key not in PRESETS:
             preset_key = "synthetic_1mb"
 
         info = PRESETS[preset_key]
-        target_path = os.path.join(self.data_dir, info["filename"])
+        
+        # Determine cached benchmark filename keyed to the target guide
+        safe_guide = "".join(c for c in default_guide.upper() if c in "ACGT")[:12]
+        if not safe_guide:
+            safe_guide = "GAGTCCGAGCAG"
+
+        base, ext = os.path.splitext(info["filename"])
+        if safe_guide == "GAGTCCGAGCAG":
+            target_path = os.path.join(self.data_dir, info["filename"])
+        else:
+            target_path = os.path.join(self.data_dir, f"{base}_{safe_guide}{ext}")
 
         if os.path.exists(target_path) and os.path.getsize(target_path) > 0:
             return target_path
 
         # Generate synthetic benchmark with deterministic spikes
         length = info["length_bp"]
+        g = (default_guide.upper() + "A" * 20)[:20]
         spikes = [
-            (min(50_000, length // 10), default_guide + "AGG"),                    # On-target (0 mismatches)
-            (min(150_000, length // 5), default_guide[:19] + "T" + "AGG"),         # Seed mismatch (pos 20)
-            (min(300_000, length // 3), "A" + default_guide[1:] + "AGG"),          # Distal mismatch (pos 1)
-            (min(600_000, length // 2), "A" + default_guide[1:9] + "T" + default_guide[10:] + "AGG") # 2 Mismatches
+            # 1. On-target perfect match (0 mismatches) -> High Risk
+            (min(50_000, length // 10), g + "AGG"),
+            # 2. Distal mismatch (position 1) -> High Risk
+            (min(150_000, length // 5), _mutate_base(g[0]) + g[1:] + "AGG"),
+            # 3. Seed region mismatch (position 19) -> Moderate Risk
+            (min(300_000, length // 3), g[:18] + _mutate_base(g[18]) + g[19:] + "AGG"),
+            # 4. 2 Mismatches (positions 2 and 12) -> Low/Moderate Risk
+            (min(550_000, length // 2), g[0] + _mutate_base(g[1]) + g[2:11] + _mutate_base(g[11]) + g[12:] + "AGG"),
+            # 5. 3 Mismatches (positions 1, 9, 18) -> Benign / Low Risk
+            (min(800_000, int(length * 0.8)), _mutate_base(g[0]) + g[1:8] + _mutate_base(g[8]) + g[9:17] + _mutate_base(g[17]) + g[18:] + "AGG"),
         ]
         valid_spikes = [(pos, seq) for pos, seq in spikes if pos + len(seq) <= length]
 

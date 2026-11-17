@@ -107,6 +107,9 @@ with st.sidebar:
         st.session_state.active_guide = p.guide_seq_20nt
         st.session_state.active_pam = p.pam_motif
         st.session_state.selected_disease_name = p.disease_name
+        st.session_state.scan_completed = False
+        st.session_state.df_hits = None
+        st.session_state.metrics = None
         st.rerun()
 
     if preset_cols[1].button("🫀 NTLA-2001\n(ATTR Disease)", use_container_width=True):
@@ -114,6 +117,9 @@ with st.sidebar:
         st.session_state.active_guide = p.guide_seq_20nt
         st.session_state.active_pam = p.pam_motif
         st.session_state.selected_disease_name = p.disease_name
+        st.session_state.scan_completed = False
+        st.session_state.df_hits = None
+        st.session_state.metrics = None
         st.rerun()
 
     preset_cols2 = st.columns(2)
@@ -122,12 +128,18 @@ with st.sidebar:
         st.session_state.active_guide = p.guide_seq_20nt
         st.session_state.active_pam = p.pam_motif
         st.session_state.selected_disease_name = p.disease_name
+        st.session_state.scan_completed = False
+        st.session_state.df_hits = None
+        st.session_state.metrics = None
         st.rerun()
 
     if preset_cols2[1].button("🎯 Benchmark\n(Default)", use_container_width=True):
         st.session_state.active_guide = "GAGTCCGAGCAGAAGAAGAA"
         st.session_state.active_pam = "NGG"
         st.session_state.selected_disease_name = "Synthetic Ground-Truth Benchmark"
+        st.session_state.scan_completed = False
+        st.session_state.df_hits = None
+        st.session_state.metrics = None
         st.rerun()
 
     st.markdown("---")
@@ -201,7 +213,9 @@ with st.sidebar:
     start_btn = st.button("🚀 Launch Real Alignment Scan", type="primary", use_container_width=True)
 
 # ----------------- EXECUTE SCAN ON BUTTON CLICK -----------------
-if start_btn:
+should_scan = start_btn or st.session_state.get("trigger_scan", False)
+if should_scan:
+    st.session_state.trigger_scan = False
     has_error = False
 
     # 1. Defensive Validation
@@ -333,6 +347,16 @@ with tab1:
         df = st.session_state.df_hits
         if len(df) == 0:
             st.success("🎉 **Zero Off-Target Mutations Detected!** The specified guide RNA appears highly specific with no tolerated mismatches in this genomic region.")
+            st.markdown(f"""
+            <div style="background: #161B22; border: 1px solid #00E676; border-radius: 10px; padding: 20px; margin-top: 12px;">
+                <h4 style="color: #00E676; margin-bottom: 6px;">🛡️ Clinical Specificity Rating: 100%</h4>
+                <p style="color: #8B949E; margin-bottom: 0;">
+                    Scanned <strong>{st.session_state.metrics['total_bp']:,} bp</strong> of genomic sequence.
+                    No off-target binding sites were detected with &le; {max_mismatches} mismatches and canonical PAM.
+                    This indicates minimal risk of off-target double-stranded breaks in this sequence.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             chart_col1, chart_col2 = st.columns([2, 1])
 
@@ -393,7 +417,21 @@ with tab1:
             else:
                 st.info("No high-risk off-target sites detected above score threshold 0.10.")
     else:
-        st.info("👈 Select a clinical target preset or load a `.fasta` file from the sidebar, then click **'🚀 Launch Real Alignment Scan'**.")
+        st.markdown(f"""
+        <div style="background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 28px; margin-top: 10px; text-align: center;">
+            <h2 style="color: #00F0FF; margin-bottom: 8px;">🚀 Ready to Align & Score CRISPR Target</h2>
+            <p style="color: #8B949E; font-size: 1.05rem; max-width: 680px; margin: 0 auto 16px auto;">
+                Currently configured for <strong>{st.session_state.selected_disease_name}</strong> (<code style="color: #00E676;">{raw_guide}</code>).
+                Scan genome-scale sequences with GPU acceleration, PAM filtering, and MIT Hsu-Zhang + Broad CFD cleavage scoring.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        col_c1, col_c2, col_c3 = st.columns([1, 2, 1])
+        with col_c2:
+            st.write("")
+            if st.button("🚀 Run Real Alignment Scan Now", type="primary", use_container_width=True, key="main_run_btn"):
+                st.session_state.trigger_scan = True
+                st.rerun()
 
 # ----------------- TAB 2: INTERACTIVE DNA INSPECTOR -----------------
 with tab2:
