@@ -39,6 +39,8 @@ tmp/
 data/*.fa
 data/*.fasta
 data/*.fna
+data/references/
+data/uploads/
 !data/.gitkeep
 
 # IDE & Editor
