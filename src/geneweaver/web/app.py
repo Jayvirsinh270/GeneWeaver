@@ -32,6 +32,7 @@ from geneweaver.biology.presets import CLINICAL_PRESETS, calculate_gc_content, e
 from geneweaver.biology.on_target import evaluate_on_target_efficiency, OnTargetScore
 from geneweaver.biology.annotator import annotate_genomic_locus, GenomicAnnotation
 from geneweaver.biology.primer import design_validation_primers, PCRValidationPrimerSet
+from geneweaver.biology.optimizer import repair_and_optimize_guide, AutoRepairDossier
 from geneweaver.web.ideogram import build_karyotype_ideogram_plot
 from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
 from geneweaver.tui.telemetry import HardwareMonitor
@@ -519,13 +520,13 @@ else:
 
 st.markdown("---")
 
-# Dynamic Tab Names (Now with Multi-Guide Duel and PCR Primer synthesis)
+# Dynamic Tab Names (Now with Auto-Repair Studio, Live Scratchpad, and Multi-Guide Duel)
 if is_simple:
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "🌟 Safety & Efficiency Summary",
         "🔍 Visual DNA Spell-Checker & Primers",
         "📋 List of Cut Sites",
-        "⚔️ Guide Duel (Compare 2 Guides)",
+        "✨ Auto-Repair Studio & Scratchpad",
         "⚡ Computer Speed & Health",
         "💾 Download Results & Dossier"
     ])
@@ -534,7 +535,7 @@ else:
         "📊 Overview, Hotspots & Annotations",
         "🔬 DNA Inspector & PCR Primers",
         "📋 Filterable Candidate Table",
-        "⚔️ Multi-Guide Lead Candidate Duel",
+        "✨ Auto-Repair Studio & Live Scratchpad",
         "⚡ Hardware Telemetry & Architecture",
         "📄 Clinical Report, UCSC BED & Exports"
     ])
@@ -954,72 +955,212 @@ with tab3:
     else:
         st.info("Run a scan to view tabular data.")
 
-# ----------------- TAB 4: MULTI-GUIDE LEAD CANDIDATE DUEL -----------------
+# ----------------- TAB 4: AUTONOMOUS REPAIR STUDIO, SCRATCHPAD & DUEL -----------------
 with tab4:
-    st.subheader("⚔️ Multi-Guide Lead Candidate Duel" if not is_simple else "⚔️ Compare 2 Guides Head-to-Head")
-    st.caption("Evaluate 2 or 3 candidate sgRNA designs side-by-side to select the optimal clinical lead:")
+    studio_subtab1, studio_subtab2, studio_subtab3 = st.tabs([
+        "✨ Autonomous Guide Auto-Repair Studio",
+        "🧬 In-Silico Live Mutation Scratchpad",
+        "⚔️ Head-to-Head Multi-Guide Duel"
+    ])
 
-    duel_col1, duel_col2 = st.columns(2)
-    with duel_col1:
-        guide_a = st.text_input("Candidate Guide A (Current Active)", value=raw_guide, max_chars=20).upper().strip()
-    with duel_col2:
-        guide_b = st.text_input("Candidate Guide B (Alternative / Benchmark)", value="CTAACAGTTGCTTTTATCAC", max_chars=20).upper().strip()
+    # ---------------- SUBTAB 1: AUTONOMOUS GUIDE AUTO-REPAIR ----------------
+    with studio_subtab1:
+        st.subheader("✨ Autonomous CRISPR Guide Auto-Repair Engine")
+        st.caption(
+            "GeneWeaver analyzes high-risk off-target bottlenecks and algorithmically synthesizes repaired alternatives "
+            "using exonic codon shifting, 5'-distal wobble engineering (Fu et al. Tru-gRNA), and terminal base optimization."
+        )
 
-    if len(guide_a) == 20 and len(guide_b) == 20:
-        ot_a = evaluate_on_target_efficiency(guide_a, "NGG")
-        ot_b = evaluate_on_target_efficiency(guide_b, "NGG")
+        try:
+            dossier = repair_and_optimize_guide(raw_guide, raw_pam[:3])
+            best = dossier.best_candidate
 
-        d_c1, d_c2 = st.columns(2)
-        with d_c1:
+            # Hero Before & After Card
             st.markdown(f"""
-            ### 🅰️ Guide A: `{guide_a}`
-            * **On-Target Efficiency:** **{ot_a.score}/100** ({ot_a.tier})
-            * **GC Content:** `{ot_a.gc_content_pct}%`
-            * **Melting Temp:** `{ot_a.melting_temp_c}°C`
-            * **Verdict:** {ot_a.summary}
-            """)
-            if ot_a.penalties:
-                for p in ot_a.penalties:
-                    st.caption(f"⚠️ {p}")
-        with d_c2:
-            st.markdown(f"""
-            ### 🅱️ Guide B: `{guide_b}`
-            * **On-Target Efficiency:** **{ot_b.score}/100** ({ot_b.tier})
-            * **GC Content:** `{ot_b.gc_content_pct}%`
-            * **Melting Temp:** `{ot_b.melting_temp_c}°C`
-            * **Verdict:** {ot_b.summary}
-            """)
-            if ot_b.penalties:
-                for p in ot_b.penalties:
-                    st.caption(f"⚠️ {p}")
+            <div style="background: linear-gradient(135deg, rgba(0, 240, 255, 0.08) 0%, rgba(0, 230, 118, 0.08) 100%); border: 1px solid #00F0FF; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                    <div>
+                        <span style="background: #00E676; color: #0A0E17; font-weight: 800; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Top Clinical Lead</span>
+                        <h3 style="color: #00F0FF; margin: 6px 0 4px 0;">✨ Repaired Guide: <code>{best.guide_sequence}</code></h3>
+                        <p style="color: #8B949E; margin: 0; font-size: 0.92rem;">
+                            Strategy: <strong>{best.optimization_strategy}</strong> &middot; <strong>{best.estimated_off_target_reduction}</strong>
+                        </p>
+                    </div>
+                    <div style="text-align: right; margin-top: 8px;">
+                        <span style="font-size: 0.85rem; color: #8B949E;">Therapeutic Fitness</span>
+                        <div style="font-size: 1.8rem; font-weight: 900; color: #00E676; font-family: monospace;">{best.therapeutic_fitness_index}/100</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        # Head to Head Comparison Chart
-        duel_df = pd.DataFrame({
-            "Metric": ["On-Target Efficiency", "GC Balance", "Hybridization Tm"],
-            "Guide A": [ot_a.score, ot_a.gc_content_pct, ot_a.melting_temp_c],
-            "Guide B": [ot_b.score, ot_b.gc_content_pct, ot_b.melting_temp_c]
-        })
-        fig_duel = go.Figure(data=[
-            go.Bar(name='Guide A', x=duel_df['Metric'], y=duel_df['Guide A'], marker_color='#00F0FF'),
-            go.Bar(name='Guide B', x=duel_df['Metric'], y=duel_df['Guide B'], marker_color='#FFB300')
-        ])
-        fig_duel.update_layout(barmode='group', template='plotly_dark', paper_bgcolor="#0A0E17", plot_bgcolor="#161B22", height=320)
-        st.plotly_chart(fig_duel, use_container_width=True)
+            col_rep1, col_rep2 = st.columns([2, 1])
+            with col_rep1:
+                st.markdown(f"**Bioinformatic Fix Rationale:** {best.bio_rationale}")
+            with col_rep2:
+                if st.button("🚀 Apply Best Repaired Guide & Rescan", type="primary", use_container_width=True, key="adopt_best_repair_btn"):
+                    st.session_state.active_guide = best.guide_sequence
+                    st.session_state.active_pam = best.pam_motif
+                    st.session_state.selected_disease_name = f"{st.session_state.selected_disease_name} (Auto-Repaired)"
+                    st.session_state.trigger_scan = True
+                    st.toast("Adopted repaired guide! Rescanning...", icon="✨")
+                    st.rerun()
 
-        # Winner Recommendation
-        if ot_a.score > ot_b.score:
-            winner = "🅰️ Candidate Guide A"
-            reason = f"higher on-target cleavage score ({ot_a.score} vs {ot_b.score}) and superior nucleotide composition."
-        elif ot_b.score > ot_a.score:
-            winner = "🅱️ Candidate Guide B"
-            reason = f"higher on-target cleavage score ({ot_b.score} vs {ot_a.score}) and superior nucleotide composition."
+            st.markdown("---")
+            st.markdown("#### 📋 All Generated Clinical Lead Candidates")
+
+            cand_cols = st.columns(len(dossier.repaired_candidates))
+            for i, cand in enumerate(dossier.repaired_candidates):
+                with cand_cols[i]:
+                    badge_style = "color:#00E676" if i == 0 else ("color:#00F0FF" if i == 1 else "color:#FFB300")
+                    st.markdown(f"""
+                    <div class="seq-card">
+                        <strong style="{badge_style}">Candidate #{cand.rank} ({cand.optimization_strategy})</strong><br/>
+                        <code style="font-size: 0.95rem; color: #F0F6FC;">{cand.guide_sequence}</code><br/>
+                        <div style="font-size: 0.82rem; color: #8B949E; margin-top: 6px;">
+                            On-Target: <strong>{cand.on_target_score}%</strong> ({cand.on_target_tier})<br/>
+                            Fitness: <strong>{cand.therapeutic_fitness_index}/100</strong><br/>
+                            GC: <strong>{cand.gc_pct}%</strong> | Tm: <strong>{cand.melting_temp}°C</strong>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.caption(f"🛡️ {cand.estimated_off_target_reduction}")
+                    if st.button(f"Adopt Candidate #{cand.rank}", key=f"btn_cand_{cand.rank}", use_container_width=True):
+                        st.session_state.active_guide = cand.guide_sequence
+                        st.session_state.active_pam = cand.pam_motif
+                        st.session_state.selected_disease_name = f"{st.session_state.selected_disease_name} (Candidate #{cand.rank})"
+                        st.session_state.trigger_scan = True
+                        st.toast(f"Adopted Candidate #{cand.rank}! Launching scan...", icon="🚀")
+                        st.rerun()
+
+        except Exception as e:
+            st.error(f"Auto-Repair could not process sequence: {e}")
+
+    # ---------------- SUBTAB 2: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
+    with studio_subtab2:
+        st.subheader("🧬 In-Silico Live Mutation Scratchpad (Reactive DNA Synthesizer)")
+        st.caption("Interactively edit individual nucleotides to preview on-target cleavage efficiency, GC stability, and binding thermodynamics in real-time:")
+
+        sc_col1, sc_col2 = st.columns([2, 1])
+        with sc_col1:
+            scratch_seq = st.text_input(
+                "Live CRISPR 20-nt Scratchpad Sequence",
+                value=raw_guide,
+                max_chars=20,
+                key="scratchpad_input"
+            ).upper().strip()
+
+        with sc_col2:
+            st.write("")
+            st.write("")
+            if st.button("🚀 Scan With This Custom Mutant", type="primary", use_container_width=True, key="scan_scratch_btn"):
+                st.session_state.active_guide = scratch_seq
+                st.session_state.selected_disease_name = "Custom In-Silico Mutant"
+                st.session_state.trigger_scan = True
+                st.rerun()
+
+        if len(scratch_seq) == 20:
+            sc_eval = evaluate_on_target_efficiency(scratch_seq, raw_pam[:3])
+            sc_gc = calculate_gc_content(scratch_seq)
+            sc_tm = estimate_melting_temp(scratch_seq)
+
+            # Interactive Base-by-Base Visual Representation
+            tiles_html = ""
+            for idx, char in enumerate(scratch_seq):
+                pos = idx + 1
+                tile_color = "#00F0FF" if pos >= 11 else "#8B949E"  # Seed vs Distal
+                border_color = "#00E676" if pos == 20 else ("#FF1744" if pos in [1, 2] and char == 'T' else "#30363D")
+                tiles_html += f"<span style='display:inline-block; margin:2px; padding:6px 10px; background:#161B22; border:1px solid {border_color}; border-radius:6px; font-family:monospace; font-weight:bold; font-size:1.1rem; color:{tile_color}; text-align:center;'>{char}<br/><sub style='font-size:0.65rem; color:#6E7681;'>{pos}</sub></span>"
+            tiles_html += f" &nbsp; <span style='display:inline-block; margin:2px; padding:6px 12px; background:#00E676; border-radius:6px; font-family:monospace; font-weight:900; font-size:1.1rem; color:#0A0E17;'>{raw_pam[:3]}<br/><sub style='font-size:0.65rem; color:#0A0E17;'>PAM</sub></span>"
+
+            st.markdown(f"<div style='margin: 16px 0; padding: 12px; background: #0D1117; border: 1px solid #30363D; border-radius: 8px;'>{tiles_html}</div>", unsafe_allow_html=True)
+            st.caption("Cyan letters (11–20): High-intolerance Seed Region &middot; Grey letters (1–10): Distal Tolerance Region &middot; Green: PAM lock")
+
+            # Instant Live Reactive Meters
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric("🎯 On-Target Cleavage", f"{sc_eval.score}/100", delta=sc_eval.tier)
+            with m2:
+                st.metric("🧬 GC Content", f"{sc_gc}%", delta="Ideal 40-60%" if 40 <= sc_gc <= 60 else "Sub-optimal")
+            with m3:
+                st.metric("🌡️ Duplex Tm", f"{sc_tm}°C", delta="Wallace Model")
+            with m4:
+                seed_gc = calculate_gc_content(scratch_seq[10:20])
+                st.metric("🔒 Seed GC Density", f"{seed_gc}%", delta="R-loop Anchor")
+
+            if sc_eval.bonuses:
+                st.success("✅ " + " | ".join(sc_eval.bonuses))
+            if sc_eval.penalties:
+                st.warning("⚠️ " + " | ".join(sc_eval.penalties))
         else:
-            winner = "Both Guides Comparable"
-            reason = "identical on-target scores. Selection should be guided by empirical off-target count."
+            st.info(f"Enter exactly 20 nucleotides to activate live biophysical telemetry ({len(scratch_seq)}/20 entered).")
 
-        st.success(f"🏆 **Recommended Lead Candidate:** **{winner}** based on {reason}")
-    else:
-        st.warning("Please ensure both Guide A and Guide B are exactly 20 nucleotides.")
+    # ---------------- SUBTAB 3: HEAD-TO-HEAD DUEL ----------------
+    with studio_subtab3:
+        st.subheader("⚔️ Head-to-Head Multi-Guide Duel")
+        st.caption("Compare two candidate sgRNAs side-by-side to select the optimal clinical lead:")
+
+        duel_col1, duel_col2 = st.columns(2)
+        with duel_col1:
+            guide_a = st.text_input("Candidate Guide A", value=raw_guide, max_chars=20, key="duel_guide_a").upper().strip()
+        with duel_col2:
+            guide_b = st.text_input("Candidate Guide B", value="CTAACAGTTGCTTTTATCAC", max_chars=20, key="duel_guide_b").upper().strip()
+
+        if len(guide_a) == 20 and len(guide_b) == 20:
+            ot_a = evaluate_on_target_efficiency(guide_a, "NGG")
+            ot_b = evaluate_on_target_efficiency(guide_b, "NGG")
+
+            d_c1, d_c2 = st.columns(2)
+            with d_c1:
+                st.markdown(f"""
+                ### 🅰️ Guide A: `{guide_a}`
+                * **On-Target Efficiency:** **{ot_a.score}/100** ({ot_a.tier})
+                * **GC Content:** `{ot_a.gc_content_pct}%`
+                * **Melting Temp:** `{ot_a.melting_temp_c}°C`
+                * **Verdict:** {ot_a.summary}
+                """)
+                if ot_a.penalties:
+                    for p in ot_a.penalties:
+                        st.caption(f"⚠️ {p}")
+            with d_c2:
+                st.markdown(f"""
+                ### 🅱️ Guide B: `{guide_b}`
+                * **On-Target Efficiency:** **{ot_b.score}/100** ({ot_b.tier})
+                * **GC Content:** `{ot_b.gc_content_pct}%`
+                * **Melting Temp:** `{ot_b.melting_temp_c}°C`
+                * **Verdict:** {ot_b.summary}
+                """)
+                if ot_b.penalties:
+                    for p in ot_b.penalties:
+                        st.caption(f"⚠️ {p}")
+
+            # Head to Head Comparison Chart
+            duel_df = pd.DataFrame({
+                "Metric": ["On-Target Efficiency", "GC Balance", "Hybridization Tm"],
+                "Guide A": [ot_a.score, ot_a.gc_content_pct, ot_a.melting_temp_c],
+                "Guide B": [ot_b.score, ot_b.gc_content_pct, ot_b.melting_temp_c]
+            })
+            fig_duel = go.Figure(data=[
+                go.Bar(name='Guide A', x=duel_df['Metric'], y=duel_df['Guide A'], marker_color='#00F0FF'),
+                go.Bar(name='Guide B', x=duel_df['Metric'], y=duel_df['Guide B'], marker_color='#FFB300')
+            ])
+            fig_duel.update_layout(barmode='group', template='plotly_dark', paper_bgcolor="#0A0E17", plot_bgcolor="#161B22", height=320)
+            st.plotly_chart(fig_duel, use_container_width=True)
+
+            # Winner Recommendation
+            if ot_a.score > ot_b.score:
+                winner = "🅰️ Candidate Guide A"
+                reason = f"higher on-target cleavage score ({ot_a.score} vs {ot_b.score}) and superior nucleotide composition."
+            elif ot_b.score > ot_a.score:
+                winner = "🅱️ Candidate Guide B"
+                reason = f"higher on-target cleavage score ({ot_b.score} vs {ot_a.score}) and superior nucleotide composition."
+            else:
+                winner = "Both Guides Comparable"
+                reason = "identical on-target scores. Selection should be guided by empirical off-target count."
+
+            st.success(f"🏆 **Recommended Lead Candidate:** **{winner}** based on {reason}")
+        else:
+            st.warning("Please ensure both Guide A and Guide B are exactly 20 nucleotides.")
 
 # ----------------- TAB 5: COMPUTER SPEED & POWER -----------------
 with tab5:

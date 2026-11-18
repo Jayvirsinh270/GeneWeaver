@@ -98,3 +98,16 @@ def test_karyotype_ideogram_and_pdf_generation():
     assert len(pdf_bytes) > 1000
     assert pdf_bytes.startswith(b"%PDF")
 
+
+def test_auto_repair_optimizer():
+    from geneweaver.biology.optimizer import repair_and_optimize_guide
+
+    dossier = repair_and_optimize_guide("GAGTCCGAGCAGAAGAAGAT")
+    assert dossier.original_guide == "GAGTCCGAGCAGAAGAAGAT"
+    assert len(dossier.repaired_candidates) == 3
+    assert dossier.best_candidate is not None
+    assert dossier.best_candidate.therapeutic_fitness_index > 0
+    assert len(dossier.best_candidate.guide_sequence) == 20
+    assert dossier.best_candidate.on_target_score > 0
+
+
