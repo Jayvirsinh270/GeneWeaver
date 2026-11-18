@@ -32,6 +32,8 @@ from geneweaver.biology.presets import CLINICAL_PRESETS, calculate_gc_content, e
 from geneweaver.biology.on_target import evaluate_on_target_efficiency, OnTargetScore
 from geneweaver.biology.annotator import annotate_genomic_locus, GenomicAnnotation
 from geneweaver.biology.primer import design_validation_primers, PCRValidationPrimerSet
+from geneweaver.web.ideogram import build_karyotype_ideogram_plot
+from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
 from geneweaver.tui.telemetry import HardwareMonitor
 
 # ----------------- PAGE CONFIGURATION & THEME -----------------
@@ -715,6 +717,12 @@ with tab1:
                         )
                 else:
                     st.info("No high-risk off-target sites detected above score threshold 0.10.")
+
+                # Interactive Chromosome Karyotype Ideogram
+                st.subheader("🧬 Whole-Genome Cytogenetic Ideogram (Hotspot Map)")
+                st.caption("Macroscopic chromosomal visualization mapping p-arm, centromere, and q-arm off-target hot zones:")
+                fig_ideogram = build_karyotype_ideogram_plot(df)
+                st.plotly_chart(fig_ideogram, use_container_width=True)
     else:
         st.markdown(f"""
         <div style="background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 28px; margin-top: 10px; text-align: center;">
@@ -1069,7 +1077,7 @@ with tab6:
         m = st.session_state.metrics
 
         st.markdown("Save and export your findings in lab-ready formats:" if is_simple else "Download formatted clinical deliverables and genome browser tracks:")
-        exp1, exp2, exp3, exp4 = st.columns(4)
+        exp1, exp2, exp3, exp4, exp5 = st.columns(5)
 
         with exp1:
             st.download_button(
@@ -1081,6 +1089,17 @@ with tab6:
             )
 
         with exp2:
+            # Generate Publication-Grade Clinical Audit PDF Certificate
+            pdf_bytes = generate_clinical_pdf_dossier(m, df)
+            st.download_button(
+                label="📄 Clinical PDF Certificate",
+                data=pdf_bytes,
+                file_name=f"geneweaver_clinical_certificate_{m['guide_used']}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+
+        with exp3:
             # Generate UCSC Genome Browser / IGV Compatible BED File
             bed_lines = [f"#track name=GeneWeaver_OffTargets description='GeneWeaver Off-Target Cleavage Sites for {m['guide_used']}' useScore=1"]
             for _, r in df.iterrows():
@@ -1093,14 +1112,14 @@ with tab6:
             bed_content = "\n".join(bed_lines)
 
             st.download_button(
-                label="🧬 Download UCSC BED Track",
+                label="🧬 UCSC BED Track",
                 data=bed_content,
                 file_name=f"geneweaver_{m['guide_used']}.bed",
                 mime="text/plain",
                 use_container_width=True
             )
 
-        with exp3:
+        with exp4:
             # Generate PCR Primers Ordering Sheet
             primer_records = []
             for _, r in df.head(15).iterrows():
@@ -1116,14 +1135,14 @@ with tab6:
                 })
             primer_df = pd.DataFrame(primer_records)
             st.download_button(
-                label="🔬 Download PCR Primers (.csv)",
+                label="🔬 PCR Primers (.csv)",
                 data=primer_df.to_csv(index=False),
                 file_name=f"pcr_primers_{m['guide_used']}.csv",
                 mime="text/csv",
                 use_container_width=True
             )
 
-        with exp4:
+        with exp5:
             report_text = f"""================================================================================
 GENEWEAVER CRISPR-CAS9 OFF-TARGET & ON-TARGET CLINICAL AUDIT DOSSIER
 ================================================================================

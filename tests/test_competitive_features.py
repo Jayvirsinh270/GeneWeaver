@@ -51,3 +51,50 @@ def test_pcr_validation_primers():
     assert primers.reverse_tm > 45.0
     assert primers.amplicon_length_bp == 350
     assert "Assay Method" in primers.pcr_protocol
+
+
+def test_karyotype_ideogram_and_pdf_generation():
+    import pandas as pd
+    from geneweaver.web.ideogram import build_karyotype_ideogram_plot
+    from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
+
+    df = pd.DataFrame([{
+        'Chromosome': 'chr7',
+        'Position': 142509211,
+        'Strand': '+',
+        'Mismatches': 1,
+        'Hsu_Score': 0.842,
+        'CFD_Score': 0.912,
+        'Risk_Tier': 'HIGH_RISK',
+        'Gene_Symbol': 'LOC231',
+        'Genomic_Feature': 'Exon (Coding)',
+        'Clinical_Consequence': 'CRITICAL',
+        'Is_Cancer_Hallmark': False,
+        'Sequence': 'GAGTCCGAGCAGAAGAAGAATGG'
+    }])
+
+    # 1. Ideogram test
+    fig = build_karyotype_ideogram_plot(df)
+    assert fig is not None
+    assert len(fig.data) > 0
+
+    # 2. PDF report test
+    metrics = {
+        'disease_name': 'Sickle Cell BCL11A',
+        'guide_used': 'CTAACAGTTGCTTTTATCAC',
+        'pam_used': 'AGG',
+        'on_target_score': 85.0,
+        'on_target_tier': 'OPTIMAL',
+        'total_bp': 1000000,
+        'throughput_mbp': 25.0,
+        'elapsed': 0.04,
+        'total_candidates': 1,
+        'high_risk_count': 1,
+        'exonic_hits_count': 1,
+        'cancer_hallmark_hits_count': 0
+    }
+    pdf_bytes = generate_clinical_pdf_dossier(metrics, df)
+    assert isinstance(pdf_bytes, bytes)
+    assert len(pdf_bytes) > 1000
+    assert pdf_bytes.startswith(b"%PDF")
+
