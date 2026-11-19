@@ -33,6 +33,8 @@ from geneweaver.biology.on_target import evaluate_on_target_efficiency, OnTarget
 from geneweaver.biology.annotator import annotate_genomic_locus, GenomicAnnotation
 from geneweaver.biology.primer import design_validation_primers, PCRValidationPrimerSet
 from geneweaver.biology.optimizer import repair_and_optimize_guide, AutoRepairDossier
+from geneweaver.biology.gene_search import search_genes_and_diseases, extract_and_design_sgrnas_for_gene, GENE_DATABASE, TargetGeneEntry
+from geneweaver.biology.delivery_sim import simulate_in_vivo_delivery, CELL_TYPE_PROFILES, DELIVERY_MODALITIES, DeliverySimulationResult
 from geneweaver.web.ideogram import build_karyotype_ideogram_plot
 from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
 from geneweaver.tui.telemetry import HardwareMonitor
@@ -119,6 +121,13 @@ if "scan_completed" not in st.session_state:
     st.session_state.active_guide = "GAGTCCGAGCAGAAGAAGAA"
     st.session_state.active_pam = "NGG"
     st.session_state.selected_disease_name = "Synthetic Ground-Truth Benchmark"
+    st.session_state.active_cell_type = list(CELL_TYPE_PROFILES.keys())[0]
+    st.session_state.active_delivery = list(DELIVERY_MODALITIES.keys())[0]
+
+if "active_cell_type" not in st.session_state:
+    st.session_state.active_cell_type = list(CELL_TYPE_PROFILES.keys())[0]
+if "active_delivery" not in st.session_state:
+    st.session_state.active_delivery = list(DELIVERY_MODALITIES.keys())[0]
 
 ref_mgr = ReferenceManager()
 hw_monitor = HardwareMonitor(device_ids=[0, 1])
@@ -136,6 +145,36 @@ with st.sidebar:
         help="Simple Mode translates bioinformatic metrics into plain English, safety scores, visual analogies, and intuitive DNA spell-checkers. Expert Mode provides raw formulas, Manhattan plots, Doench '16 on-target efficiency, genomic locus annotations, PCR primer synthesis, and GPU microarchitecture."
     )
     is_simple = "Simple" in ui_mode
+
+    st.markdown("---")
+    st.markdown("### 🔍 Instant Disease & Gene Search" if not is_simple else "### 🔍 Search Any Disease")
+    st.caption("Auto-design guide from clinical human gene database:" if not is_simple else "Search any condition (e.g. Huntington, Lung Cancer, BRCA1):")
+    search_q = st.text_input(
+        "Search Disease or Gene Symbol",
+        placeholder="e.g. Huntington, EGFR, BRCA1, CFTR, PCSK9...",
+        key="search_disease_input"
+    )
+    if search_q:
+        matched = search_genes_and_diseases(search_q)
+        if matched:
+            st.caption(f"Found {len(matched)} matching clinical target(s):")
+            for g in matched[:3]:
+                with st.expander(f"🧬 **{g.gene_symbol}** — {g.disease_indication}", expanded=True):
+                    st.markdown(f"**Locus:** `{g.chromosome}` &middot; **Status:** {g.therapeutic_phase}")
+                    st.caption(g.clinical_summary)
+                    auto_cands = extract_and_design_sgrnas_for_gene(g, max_candidates=2)
+                    for ac in auto_cands:
+                        if st.button(f"🎯 Load #{ac.rank}: {ac.guide_seq} ({ac.on_target_score}%)", key=f"auto_lead_{g.gene_symbol}_{ac.rank}", use_container_width=True):
+                            st.session_state.active_guide = ac.guide_seq
+                            st.session_state.selected_disease_name = f"{g.gene_symbol} ({g.disease_indication})"
+                            st.session_state.scan_completed = False
+                            st.session_state.df_hits = None
+                            st.session_state.metrics = None
+                            st.session_state.trigger_scan = True
+                            st.toast(f"Adopted {g.gene_symbol} lead guide! Launching scan...", icon="🎯")
+                            st.rerun()
+        else:
+            st.info(f"No match for '{search_q}'. Try 'Huntington', 'EGFR', 'BRCA1', 'CFTR', 'HBB', 'PCSK9'.")
 
     st.markdown("---")
     st.markdown("### 1. Ready-to-Use Treatments" if is_simple else "### 1. Clinical Guide Presets")
@@ -283,6 +322,24 @@ with st.sidebar:
     )
 
     st.markdown("---")
+    st.markdown("### 5. In-Vivo Delivery & Tissue" if not is_simple else "### 5. Patient Cell & Delivery")
+    cell_options = list(CELL_TYPE_PROFILES.keys())
+    sel_cell = st.selectbox(
+        "Target Cell / Organ System",
+        cell_options,
+        index=cell_options.index(st.session_state.active_cell_type) if st.session_state.active_cell_type in cell_options else 0
+    )
+    st.session_state.active_cell_type = sel_cell
+
+    deliv_options = list(DELIVERY_MODALITIES.keys())
+    sel_deliv = st.selectbox(
+        "Delivery Modality",
+        deliv_options,
+        index=deliv_options.index(st.session_state.active_delivery) if st.session_state.active_delivery in deliv_options else 0
+    )
+    st.session_state.active_delivery = sel_deliv
+
+    st.markdown("---")
     scan_btn_label = "🚀 Launch DNA Safety Scan" if is_simple else "🚀 Launch Real Alignment Scan"
     start_btn = st.button(scan_btn_label, type="primary", use_container_width=True)
 
@@ -368,6 +425,14 @@ if should_scan:
             else:
                 st.session_state.df_hits = pd.DataFrame(columns=COLUMNS)
 
+            # Compute In-Vivo Delivery Simulation
+            deliv_sim = simulate_in_vivo_delivery(
+                cell_type_choice=st.session_state.active_cell_type,
+                delivery_choice=st.session_state.active_delivery,
+                on_target_score=on_target_assessment.score,
+                high_risk_off_target_count=sum(1 for r in scored_records if r.get("Risk_Tier") == "HIGH_RISK")
+            )
+
             st.session_state.metrics = {
                 "elapsed": elapsed,
                 "total_bp": metrics.total_base_pairs,
@@ -381,6 +446,17 @@ if should_scan:
                 "on_target_summary": on_target_assessment.summary,
                 "on_target_penalties": on_target_assessment.penalties,
                 "on_target_bonuses": on_target_assessment.bonuses,
+                "cell_type": st.session_state.active_cell_type,
+                "delivery_modality": st.session_state.active_delivery,
+                "fda_feasibility": deliv_sim.fda_ind_feasibility_score,
+                "feasibility_tier": deliv_sim.feasibility_tier,
+                "transduction_eff": deliv_sim.transduction_efficiency_pct,
+                "chromatin_access": deliv_sim.chromatin_accessibility_pct,
+                "effective_in_vivo_cutting": deliv_sim.effective_in_vivo_cutting_pct,
+                "cas9_duration": deliv_sim.cas9_exposure_duration,
+                "deliv_advantages": deliv_sim.preclinical_advantages,
+                "deliv_warnings": deliv_sim.preclinical_warnings,
+                "deliv_recommendation": deliv_sim.regulatory_recommendation,
                 "guide_used": clean_guide,
                 "pam_used": clean_pam,
                 "disease_name": st.session_state.selected_disease_name
@@ -632,6 +708,7 @@ with tab1:
                     if m.get("on_target_penalties"):
                         for p in m["on_target_penalties"]:
                             st.caption(f"⚠️ {p}")
+                    st.caption(f"💉 **Delivery:** Formulated for **{m.get('cell_type', 'Target Cells')}** via **{m.get('delivery_modality', 'LNP')}** &middot; Patient Success: **{m.get('fda_feasibility', 80.0)}/100**")
 
                 st.subheader("🚨 Priority Sites to Review")
                 danger_sites = df[df["Risk_Tier"] == "HIGH_RISK"]
@@ -724,6 +801,29 @@ with tab1:
                 st.caption("Macroscopic chromosomal visualization mapping p-arm, centromere, and q-arm off-target hot zones:")
                 fig_ideogram = build_karyotype_ideogram_plot(df)
                 st.plotly_chart(fig_ideogram, use_container_width=True)
+
+                # In-Vivo Preclinical Delivery Vehicle & Epigenetic Simulator Card
+                st.subheader("💉 Preclinical In-Vivo Delivery & Patient Tissue Feasibility")
+                st.caption(f"Simulating delivery kinetics in **{m.get('cell_type', 'Target Tissue')}** via **{m.get('delivery_modality', 'LNP')}**:")
+                d1, d2, d3, d4 = st.columns(4)
+                with d1:
+                    st.metric("Transduction Uptake", f"{m.get('transduction_eff', 88.0)}%", delta="Target Tissue")
+                with d2:
+                    st.metric("Chromatin Access", f"{m.get('chromatin_access', 85.0)}%", delta="Euchromatin")
+                with d3:
+                    st.metric("In-Vivo Cutting Rate", f"{m.get('effective_in_vivo_cutting', 70.0)}%", delta="Net Tissue Potency")
+                with d4:
+                    feas_score = m.get('fda_feasibility', 80.0)
+                    feas_color = "normal" if feas_score >= 75 else ("off" if feas_score >= 50 else "inverse")
+                    st.metric("🏛️ FDA IND Feasibility", f"{feas_score}/100", delta=m.get('feasibility_tier', 'HIGH_FEASIBILITY'), delta_color=feas_color)
+
+                st.markdown(f"**Regulatory Guidance:** {m.get('deliv_recommendation', 'Preclinical profile satisfactory.')}")
+                adv_list = m.get('deliv_advantages', [])
+                warn_list = m.get('deliv_warnings', [])
+                if adv_list:
+                    st.caption("✅ " + " | ".join(adv_list[:2]))
+                if warn_list:
+                    st.caption("⚠️ " + " | ".join(warn_list[:2]))
     else:
         st.markdown(f"""
         <div style="background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 28px; margin-top: 10px; text-align: center;">

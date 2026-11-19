@@ -111,3 +111,44 @@ def test_auto_repair_optimizer():
     assert dossier.best_candidate.on_target_score > 0
 
 
+def test_gene_search_and_designer():
+    from geneweaver.biology.gene_search import search_genes_and_diseases, extract_and_design_sgrnas_for_gene, GENE_DATABASE
+
+    # 1. Search by disease name
+    results_huntington = search_genes_and_diseases("Huntington")
+    assert len(results_huntington) >= 1
+    assert results_huntington[0].gene_symbol == "HTT"
+
+    # 2. Search by gene symbol
+    results_egfr = search_genes_and_diseases("EGFR")
+    assert len(results_egfr) >= 1
+    assert results_egfr[0].chromosome == "chr7"
+
+    # 3. Design sgRNAs from gene exon
+    entry = GENE_DATABASE["HBB"]
+    candidates = extract_and_design_sgrnas_for_gene(entry, target_pam="NGG", max_candidates=5)
+    assert len(candidates) > 0
+    assert len(candidates[0].guide_seq) == 20
+    assert candidates[0].on_target_score > 0
+
+
+def test_delivery_simulator():
+    from geneweaver.biology.delivery_sim import simulate_in_vivo_delivery, CELL_TYPE_PROFILES, DELIVERY_MODALITIES
+
+    cell_type = list(CELL_TYPE_PROFILES.keys())[0]
+    delivery = list(DELIVERY_MODALITIES.keys())[0]
+
+    sim = simulate_in_vivo_delivery(
+        cell_type_choice=cell_type,
+        delivery_choice=delivery,
+        on_target_score=85.0,
+        high_risk_off_target_count=0
+    )
+
+    assert sim.fda_ind_feasibility_score > 0
+    assert sim.effective_in_vivo_cutting_pct > 0
+    assert sim.feasibility_tier in ["HIGH_FEASIBILITY", "MODERATE_FEASIBILITY", "CHALLENGING"]
+    assert len(sim.preclinical_advantages) > 0
+
+
+

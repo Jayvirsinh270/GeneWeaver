@@ -157,6 +157,12 @@ def generate_clinical_pdf_dossier(metrics: Dict[str, Any], df_hits: pd.DataFrame
             Paragraph(f"{metrics.get('total_candidates', 0)}", body_style),
             Paragraph("<b>Exonic Disruptions:</b>", body_style),
             Paragraph(f"<b>{metrics.get('exonic_hits_count', 0)}</b> ({cancer_hits} Cancer Hallmarks)", body_style),
+        ],
+        [
+            Paragraph("<b>Delivery & Cell System:</b>", body_style),
+            Paragraph(f"{str(metrics.get('delivery_modality', 'LNP / Electroporation'))[:28]} &bull; {str(metrics.get('cell_type', 'Primary Human Cells'))[:22]}", body_style),
+            Paragraph("<b>FDA IND Feasibility:</b>", body_style),
+            Paragraph(f"<b>{metrics.get('fda_feasibility', 85.0)}/100</b> ({metrics.get('feasibility_tier', 'HIGH_FEASIBILITY')})", body_style),
         ]
     ]
     param_table = Table(param_data, colWidths=[120, 150, 140, 130])
