@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  geneweaver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: geneweaver:latest
+    container_name: geneweaver-portal
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./data:/app/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

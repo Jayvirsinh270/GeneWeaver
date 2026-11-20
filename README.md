@@ -10,6 +10,9 @@
 [![Dask](https://img.shields.io/badge/Dask-Distributed_GPU-F37626?style=for-the-badge&logo=dask&logoColor=white)](https://dask.org)
 [![Textual](https://img.shields.io/badge/Textual-Reactive_TUI-7928CA?style=for-the-badge)](https://textual.textualize.io)
 [![ReportLab](https://img.shields.io/badge/ReportLab-Clinical_PDF-E11D48?style=for-the-badge)](https://www.reportlab.com)
+[![3Dmol.js](https://img.shields.io/badge/3Dmol.js-WebGL_3D_Viewer-059669?style=for-the-badge)](https://3dmol.csb.pitt.edu)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
+[![CI](https://github.com/Jayvirsinh270/GeneWeaver/actions/workflows/ci.yml/badge.svg)](https://github.com/Jayvirsinh270/GeneWeaver/actions)
 [![BioPython](https://img.shields.io/badge/BioPython-1.83-00599C?style=for-the-badge)](https://biopython.org)
 
 <br/>
@@ -135,12 +138,20 @@ python -m geneweaver.cli scan \
   --tui
 ```
 
-### 4. Run Automated Test Suite
+### 4. Enterprise Cloud Deployment via Docker
+GeneWeaver includes production multi-stage containerization with GPU pass-through:
+```bash
+# Launch containerized platform with 1 command
+docker compose up --build
+```
+Access the portal at `http://localhost:8501`.
+
+### 5. Run Automated Test Suite
 ```bash
 pytest
 ```
 ```text
-============================= 40 passed in 8.32s =============================
+============================= 41 passed in 14.15s =============================
 ```
 
 ---

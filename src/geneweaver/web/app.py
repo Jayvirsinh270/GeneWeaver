@@ -37,6 +37,8 @@ from geneweaver.biology.gene_search import search_genes_and_diseases, extract_an
 from geneweaver.biology.delivery_sim import simulate_in_vivo_delivery, CELL_TYPE_PROFILES, DELIVERY_MODALITIES, DeliverySimulationResult
 from geneweaver.web.ideogram import build_karyotype_ideogram_plot
 from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
+from geneweaver.web.structure_viewer import generate_3dmol_html
+import streamlit.components.v1 as components
 from geneweaver.tui.telemetry import HardwareMonitor
 
 # ----------------- PAGE CONFIGURATION & THEME -----------------
@@ -982,6 +984,18 @@ with tab2:
             st.markdown("**Thermal Cycling Conditions (Standard Q5 / Phusion Polymerase):**")
             pcr_df = pd.DataFrame(list(primer_set.pcr_protocol.items()), columns=["Step", "Condition"])
             st.table(pcr_df)
+
+        # ----------------- 3D MACROMOLECULAR STRUCTURE VIEWER -----------------
+        st.markdown("---")
+        with st.expander("🧬 **3D Macromolecular Cas9 Cleavage Pocket Viewer (PDB: 4UN3)**", expanded=True):
+            st.caption("Interactive WebGL 3D model of the SpCas9 ribonucleoprotein complex showing physical steric mismatch clashes inside the catalytic pocket:")
+            mol_html = generate_3dmol_html(
+                target_guide=target_g,
+                locus_seq=locus_s,
+                mismatch_positions=mismatch_positions,
+                height=520
+            )
+            components.html(mol_html, height=530)
 
     elif st.session_state.scan_completed:
         st.info("Zero off-target mutations detected to inspect. Target sequence is 100% specific in this genomic region!")

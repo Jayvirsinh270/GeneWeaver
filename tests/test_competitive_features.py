@@ -151,4 +151,20 @@ def test_delivery_simulator():
     assert len(sim.preclinical_advantages) > 0
 
 
+def test_3d_structure_viewer():
+    from geneweaver.web.structure_viewer import generate_3dmol_html
+
+    html = generate_3dmol_html(
+        target_guide="GAGTCCGAGCAGAAGAAGAA",
+        locus_seq="GAGTCCGAGCAGAAGAAGAT",
+        mismatch_positions=[20],
+        height=400
+    )
+    assert isinstance(html, str)
+    assert "3Dmol" in html
+    assert "pdb:4UN3" in html
+    assert "STERIC CLASH" in html
+
+
+
 
