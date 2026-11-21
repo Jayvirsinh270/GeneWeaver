@@ -35,6 +35,7 @@ from geneweaver.biology.primer import design_validation_primers, PCRValidationPr
 from geneweaver.biology.optimizer import repair_and_optimize_guide, AutoRepairDossier
 from geneweaver.biology.gene_search import search_genes_and_diseases, extract_and_design_sgrnas_for_gene, GENE_DATABASE, TargetGeneEntry
 from geneweaver.biology.delivery_sim import simulate_in_vivo_delivery, CELL_TYPE_PROFILES, DELIVERY_MODALITIES, DeliverySimulationResult
+from geneweaver.biology.nucleases import get_supported_nucleases, evaluate_nuclease_compatibility, NUCLEASE_REGISTRY, NucleaseProfile
 from geneweaver.web.ideogram import build_karyotype_ideogram_plot
 from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
 from geneweaver.web.structure_viewer import generate_3dmol_html
@@ -125,11 +126,14 @@ if "scan_completed" not in st.session_state:
     st.session_state.selected_disease_name = "Synthetic Ground-Truth Benchmark"
     st.session_state.active_cell_type = list(CELL_TYPE_PROFILES.keys())[0]
     st.session_state.active_delivery = list(DELIVERY_MODALITIES.keys())[0]
+    st.session_state.active_nuclease = "sp_cas9"
 
 if "active_cell_type" not in st.session_state:
     st.session_state.active_cell_type = list(CELL_TYPE_PROFILES.keys())[0]
 if "active_delivery" not in st.session_state:
     st.session_state.active_delivery = list(DELIVERY_MODALITIES.keys())[0]
+if "active_nuclease" not in st.session_state:
+    st.session_state.active_nuclease = "sp_cas9"
 
 ref_mgr = ReferenceManager()
 hw_monitor = HardwareMonitor(device_ids=[0, 1])
@@ -147,6 +151,29 @@ with st.sidebar:
         help="Simple Mode translates bioinformatic metrics into plain English, safety scores, visual analogies, and intuitive DNA spell-checkers. Expert Mode provides raw formulas, Manhattan plots, Doench '16 on-target efficiency, genomic locus annotations, PCR primer synthesis, and GPU microarchitecture."
     )
     is_simple = "Simple" in ui_mode
+
+    st.markdown("---")
+    st.markdown("### 🧬 Nuclease Architecture" if not is_simple else "### ✂️ Molecular Scissors Type")
+    nuc_dict = get_supported_nucleases()
+    nuc_keys = list(nuc_dict.keys())
+    sel_nuc = st.selectbox(
+        "Select Endonuclease System",
+        options=nuc_keys,
+        format_func=lambda k: f"{nuc_dict[k].name} ({nuc_dict[k].canonical_pam} PAM)",
+        index=nuc_keys.index(st.session_state.active_nuclease) if st.session_state.active_nuclease in nuc_keys else 0,
+        help="Switch between SpCas9 (standard), Cas12a/Cpf1 (sticky overhangs), SaCas9 (compact AAV), and CasMINI."
+    )
+    if sel_nuc != st.session_state.active_nuclease:
+        st.session_state.active_nuclease = sel_nuc
+        n_prof = nuc_dict[sel_nuc]
+        st.session_state.active_pam = n_prof.canonical_pam
+        if len(st.session_state.active_guide) != n_prof.guide_length_nt:
+            if len(st.session_state.active_guide) < n_prof.guide_length_nt:
+                st.session_state.active_guide = st.session_state.active_guide.ljust(n_prof.guide_length_nt, 'A')
+            else:
+                st.session_state.active_guide = st.session_state.active_guide[:n_prof.guide_length_nt]
+        st.session_state.scan_completed = False
+        st.rerun()
 
     st.markdown("---")
     st.markdown("### 🔍 Instant Disease & Gene Search" if not is_simple else "### 🔍 Search Any Disease")
@@ -230,12 +257,15 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 2. Target DNA Address" if is_simple else "### 2. Guide RNA & PAM Specification")
 
-    guide_title = "20-Letter Target DNA Sequence" if is_simple else "Target Guide Sequence (20nt)"
-    guide_help = "The 20-letter DNA address (A, C, G, T) that your molecular scissors will search for." if is_simple else "20-nucleotide guide spacer sequence without PAM."
+    curr_nuc = nuc_dict.get(st.session_state.active_nuclease, nuc_dict["sp_cas9"])
+    req_len = curr_nuc.guide_length_nt
+
+    guide_title = f"{req_len}-Letter Target DNA Sequence" if is_simple else f"Target Guide Sequence ({req_len}nt)"
+    guide_help = f"The {req_len}-letter DNA address (A, C, G, T) that {curr_nuc.name} will search for." if is_simple else f"{req_len}-nucleotide guide spacer sequence without PAM."
     raw_guide = st.text_input(
         guide_title,
         value=st.session_state.active_guide,
-        max_chars=25,
+        max_chars=32,
         help=guide_help
     ).upper().strip()
 
@@ -243,19 +273,19 @@ with st.sidebar:
     guide_len = len(raw_guide)
     gc_pct = calculate_gc_content(raw_guide)
     tm_est = estimate_melting_temp(raw_guide)
-    on_target_preview = evaluate_on_target_efficiency(raw_guide, "NGG")
+    on_target_preview = evaluate_on_target_efficiency(raw_guide, curr_nuc.canonical_pam)
 
-    diag_color = "green" if guide_len == 20 else ("orange" if guide_len < 20 else "red")
+    diag_color = "green" if guide_len == req_len else ("orange" if guide_len < req_len else "red")
     st.markdown(
         f"<div style='font-size: 0.85rem; color: #8B949E;'>"
-        f"{'Letters' if is_simple else 'Length'}: <strong style='color:{diag_color}'>{guide_len}/20</strong> | "
+        f"{'Letters' if is_simple else 'Length'}: <strong style='color:{diag_color}'>{guide_len}/{req_len}</strong> | "
         f"{'GC Balance' if is_simple else 'GC Content'}: <strong>{gc_pct}%</strong> | "
         f"{'Binding Temp' if is_simple else 'Tm'}: <strong>{tm_est}°C</strong>"
         f"</div>",
         unsafe_allow_html=True
     )
 
-    if guide_len == 20:
+    if guide_len == req_len:
         eff_color = "#00E676" if on_target_preview.score >= 70 else ("#FFB300" if on_target_preview.score >= 50 else "#FF1744")
         st.markdown(
             f"<div style='margin-top: 6px; padding: 6px 10px; background: #161B22; border: 1px solid #30363D; border-radius: 6px; font-size: 0.82rem;'>"
@@ -267,21 +297,49 @@ with st.sidebar:
         if on_target_preview.penalties:
             st.caption(f"⚠️ {on_target_preview.penalties[0]}")
     elif gc_pct < 30.0 or gc_pct > 70.0:
-        st.caption("⚠️ Note: GC content outside 30-70% may lower Cas9 cleavage efficiency.")
+        st.caption(f"⚠️ Note: GC content outside 30-70% may lower {curr_nuc.name} cleavage efficiency.")
 
-    pam_label = "Safety Lock Pattern (PAM)" if is_simple else "Protospacer Adjacent Motif (PAM)"
-    pam_options = [
-        "NGG (Standard SpCas9 Scissors)" if is_simple else "NGG (SpCas9 Canonical)",
-        "NAG (SpCas9 Alternate)" if is_simple else "NAG (SpCas9 Alternate)",
-        "NGA (SpCas9 Variant)" if is_simple else "NGA (SpCas9 Variant)",
-        "TTTV (Cas12a/Cpf1 Scissors)" if is_simple else "TTTV (Cas12a/Cpf1)"
-    ]
+    pam_label = "Safety Lock Pattern (PAM)" if is_simple else f"Protospacer Adjacent Motif (PAM - {curr_nuc.pam_orientation})"
+    if curr_nuc.id == "cas12a_cpf1":
+        pam_options = [
+            "TTTV (Cas12a Canonical 5'-PAM)",
+            "TTTA (Cas12a Subtype A)",
+            "TTTC (Cas12a Subtype C)",
+            "TTTG (Cas12a Alternate G)"
+        ]
+    elif curr_nuc.id == "sa_cas9":
+        pam_options = [
+            "NNGRRT (SaCas9 Canonical 3'-PAM)",
+            "NNGGAT (SaCas9 Variant)",
+            "NNGGGT (SaCas9 Variant)",
+            "NNGAAT (SaCas9 Alternate)"
+        ]
+    elif curr_nuc.id == "cas_mini":
+        pam_options = [
+            "TTTR (CasMINI Canonical 5'-PAM)",
+            "TTTA (CasMINI Subtype A)",
+            "TTTG (CasMINI Subtype G)"
+        ]
+    else:  # sp_cas9
+        pam_options = [
+            "NGG (Standard SpCas9 Scissors)" if is_simple else "NGG (SpCas9 Canonical)",
+            "NAG (SpCas9 Alternate)" if is_simple else "NAG (SpCas9 Alternate)",
+            "NGA (SpCas9 Variant)" if is_simple else "NGA (SpCas9 Variant)"
+        ]
+
+    pam_idx = 0
+    for idx_p, opt in enumerate(pam_options):
+        if opt.startswith(st.session_state.active_pam):
+            pam_idx = idx_p
+            break
+
     pam_choice = st.selectbox(
         pam_label,
         pam_options,
-        index=0 if st.session_state.active_pam.startswith("NGG") or st.session_state.active_pam in ["AGG", "CGG", "GGG", "TGG"] else 1
+        index=pam_idx
     )
     raw_pam = pam_choice.split()[0]
+    st.session_state.active_pam = raw_pam
 
     st.markdown("---")
     st.markdown("### 3. DNA Search Genome" if is_simple else "### 3. Genome Sequence Source")
@@ -351,9 +409,12 @@ if should_scan:
     st.session_state.trigger_scan = False
     has_error = False
 
+    curr_nuc = nuc_dict.get(st.session_state.active_nuclease, nuc_dict["sp_cas9"])
+    req_len = curr_nuc.guide_length_nt
+
     # 1. Defensive Validation
     try:
-        clean_guide = validate_and_clean_guide(raw_guide)
+        clean_guide = validate_and_clean_guide(raw_guide, expected_length=req_len)
     except InvalidGuideError as e:
         st.error(f"🚨 **Guide RNA Error:** {e.message}\n\n💡 **Action:** {e.remediation}")
         has_error = True
@@ -382,18 +443,32 @@ if should_scan:
 
             # Stream chunks
             streamer = FastaStreamer(chunk_size=250_000, overlap_bp=22)
-            aligner = CpuAligner(target_guide=clean_guide, pam_motif=clean_pam[:3], max_mismatches=max_mismatches)
+            aligner = CpuAligner(
+                target_guide=clean_guide,
+                pam_motif=clean_pam,
+                max_mismatches=max_mismatches,
+                pam_orientation=curr_nuc.pam_orientation
+            )
 
             raw_hits, metrics = aligner.benchmark_chunk_stream(streamer, fasta_target_path)
             elapsed = time.perf_counter() - t_start
 
-            # Calculate on-target efficiency and biological scoring
+            # Calculate on-target efficiency, biological scoring & nuclease compatibility
             on_target_assessment = evaluate_on_target_efficiency(clean_guide, clean_pam)
+            nuc_assessment = evaluate_nuclease_compatibility(curr_nuc.id, clean_guide, clean_pam)
 
             # Calculate dual biological scores + Genomic Locus Annotations
             scored_records = []
+            pam_len = len(clean_pam)
             for h in raw_hits:
-                cfd = calculate_cfd_score(clean_guide, h.sequence[:20], pam=h.sequence[20:23])
+                if curr_nuc.pam_orientation == "5_PRIME":
+                    cand_pam = h.sequence[:pam_len]
+                    cand_guide = h.sequence[pam_len:pam_len + req_len]
+                else:
+                    cand_guide = h.sequence[:req_len]
+                    cand_pam = h.sequence[req_len:req_len + pam_len] if len(h.sequence) >= req_len + pam_len else clean_pam
+
+                cfd = calculate_cfd_score(clean_guide, cand_guide, pam=cand_pam)
                 if h.hsu_score >= min_score or cfd >= min_score:
                     ann = annotate_genomic_locus(h.chrom_name, h.global_pos)
                     scored_records.append({
@@ -448,6 +523,16 @@ if should_scan:
                 "on_target_summary": on_target_assessment.summary,
                 "on_target_penalties": on_target_assessment.penalties,
                 "on_target_bonuses": on_target_assessment.bonuses,
+                "nuclease_id": curr_nuc.id,
+                "nuclease_name": curr_nuc.name,
+                "nuclease_organism": curr_nuc.organism,
+                "nuclease_cut": curr_nuc.cut_geometry,
+                "nuclease_cleavage_desc": curr_nuc.cleavage_description,
+                "nuclease_aav": curr_nuc.aav_packageable,
+                "nuclease_pam_orient": curr_nuc.pam_orientation,
+                "nuclease_seed_range": curr_nuc.seed_region_range,
+                "nuclease_advantages": nuc_assessment.advantages,
+                "nuclease_warnings": nuc_assessment.warnings,
                 "cell_type": st.session_state.active_cell_type,
                 "delivery_modality": st.session_state.active_delivery,
                 "fda_feasibility": deliv_sim.fda_ind_feasibility_score,
@@ -826,6 +911,29 @@ with tab1:
                     st.caption("✅ " + " | ".join(adv_list[:2]))
                 if warn_list:
                     st.caption("⚠️ " + " | ".join(warn_list[:2]))
+
+                # Endonuclease Architecture & Delivery Profile Card
+                st.subheader(f"🧬 Endonuclease Architecture: {m.get('nuclease_name', 'SpCas9')}")
+                st.caption(f"Biophysical constraints & packaging parameters for **{m.get('nuclease_organism', 'CRISPR Nuclease')}**:")
+                np1, np2, np3, np4 = st.columns(4)
+                with np1:
+                    st.metric("Cut Geometry", m.get('nuclease_cut', 'BLUNT'), delta="Cleavage Type")
+                with np2:
+                    st.metric("PAM Recognition", f"{m.get('pam_used', 'NGG')}", delta=f"{m.get('nuclease_pam_orient', '3_PRIME')} Orientation")
+                with np3:
+                    aav_fit = m.get('nuclease_aav', False)
+                    st.metric("AAV Packaging", "✅ Single AAV" if aav_fit else "⚠️ Dual-AAV / LNP", delta="<4.7 kb Capsid" if aav_fit else ">4.7 kb Requires LNP", delta_color="normal" if aav_fit else "inverse")
+                with np4:
+                    s_r = m.get('nuclease_seed_range', (11, 20))
+                    st.metric("Seed Core", f"nt {s_r[0]}–{s_r[1]}", delta="Mismatch Critical")
+
+                st.markdown(f"**Cleavage Mechanism:** {m.get('nuclease_cleavage_desc', 'Double-stranded DNA break.')}")
+                nuc_adv = m.get('nuclease_advantages', [])
+                nuc_warn = m.get('nuclease_warnings', [])
+                if nuc_adv:
+                    st.caption("✅ " + " | ".join(nuc_adv[:2]))
+                if nuc_warn:
+                    st.caption("⚠️ " + " | ".join(nuc_warn[:2]))
     else:
         st.markdown(f"""
         <div style="background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 28px; margin-top: 10px; text-align: center;">
@@ -891,9 +999,21 @@ with tab2:
         pos_labels = ""
 
         mismatch_positions = []
-        for i in range(20):
+        g_len = len(target_g)
+        is_5prime = (st.session_state.metrics.get("nuclease_pam_orient", "3_PRIME") == "5_PRIME")
+        pam_str = st.session_state.metrics.get("pam_used", "NGG")
+        nuc_pam_len = len(pam_str)
+
+        if is_5prime:
+            locus_pam = locus_s[:nuc_pam_len] if len(locus_s) >= nuc_pam_len else pam_str
+            locus_guide = locus_s[nuc_pam_len:nuc_pam_len + g_len] if len(locus_s) >= nuc_pam_len + g_len else locus_s
+        else:
+            locus_guide = locus_s[:g_len]
+            locus_pam = locus_s[g_len:g_len + nuc_pam_len] if len(locus_s) >= g_len + nuc_pam_len else pam_str
+
+        for i in range(g_len):
             t_char = target_g[i] if i < len(target_g) else "N"
-            l_char = locus_s[i] if i < len(locus_s) else "N"
+            l_char = locus_guide[i] if i < len(locus_guide) else "N"
             pos_labels += f"<span style='display:inline-block;width:30px;text-align:center;font-size:0.75rem;color:#8B949E'>{i+1}</span>"
             
             if t_char == l_char:
@@ -904,11 +1024,18 @@ with tab2:
                 guide_tiles += f"<span class='base-tile match-tile' style='width:30px;text-align:center'>{t_char}</span>"
                 locus_tiles += f"<span class='base-tile mismatch-tile' style='width:30px;text-align:center'>{l_char}</span>"
 
-        # Append PAM
-        pam_locus = locus_s[20:23] if len(locus_s) >= 23 else "AGG"
-        guide_tiles += f" &nbsp; <span class='base-tile pam-tile'>{st.session_state.metrics['pam_used'][:3]}</span>"
-        locus_tiles += f" &nbsp; <span class='base-tile pam-tile'>{pam_locus}</span>"
-        pos_labels += " &nbsp; <span style='font-size:0.75rem;color:#00E676'>PAM</span>"
+        pam_tile_guide = f"<span class='base-tile pam-tile'>{pam_str}</span>"
+        pam_tile_locus = f"<span class='base-tile pam-tile'>{locus_pam}</span>"
+        pam_label = "<span style='font-size:0.75rem;color:#00E676'>PAM</span>"
+
+        if is_5prime:
+            guide_tiles = f"{pam_tile_guide} &nbsp; {guide_tiles}"
+            locus_tiles = f"{pam_tile_locus} &nbsp; {locus_tiles}"
+            pos_labels = f"{pam_label} &nbsp; {pos_labels}"
+        else:
+            guide_tiles += f" &nbsp; {pam_tile_guide}"
+            locus_tiles += f" &nbsp; {pam_tile_locus}"
+            pos_labels += f" &nbsp; {pam_label}"
 
         st.markdown(f"""
         <div class="seq-card">
@@ -929,27 +1056,34 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
 
+        n_s_start, n_s_end = st.session_state.metrics.get("nuclease_seed_range", (11, 20))
+        n_name = st.session_state.metrics.get("nuclease_name", "SpCas9")
+
         if is_simple:
             # Simple explanation for the selected site
             if row['Mismatches'] == 0:
-                st.success("🎯 **This is your exact target gene!** All 20 letters match perfectly. The molecular scissors will bind with 100% affinity and make the intended therapeutic cut here.")
+                st.success(f"🎯 **This is your exact target gene!** All {g_len} letters match perfectly. {n_name} will bind with 100% affinity and make the intended therapeutic cut here.")
             else:
-                has_seed_mistake = any(p >= 11 for p in mismatch_positions)
-                has_distal_mistake = any(p <= 10 for p in mismatch_positions)
+                has_seed_mistake = any(n_s_start <= p <= n_s_end for p in mismatch_positions)
+                has_distal_mistake = any(p < n_s_start or p > n_s_end for p in mismatch_positions)
                 
                 if has_seed_mistake and not has_distal_mistake:
-                    st.info(f"🛡️ **Spelling mistake at letter #{mismatch_positions} (Seed Region):** Because this typo is close to the green safety lock (letters 11–20), it significantly disrupts the scissors from binding, lowering the cut chance to **{int(row['Hsu_Score']*100)}%**.")
+                    st.info(f"🛡️ **Spelling mistake at letter #{mismatch_positions} (Seed Core):** Because this typo is inside the critical seed recognition zone (letters {n_s_start}–{n_s_end}), it severely disrupts {n_name} from cutting, dropping cut chance to **{int(row['Hsu_Score']*100)}%**.")
                 elif has_distal_mistake and not has_seed_mistake:
-                    st.warning(f"⚠️ **Spelling mistake at letter #{mismatch_positions} (Distal Region):** Because this typo is far from the safety lock (letters 1–10), the scissors can still latch on and cut with **{int(row['Hsu_Score']*100)}% probability**! Watch out for this site.")
+                    st.warning(f"⚠️ **Spelling mistake at letter #{mismatch_positions} (Distal Zone):** Because this typo is outside the core seed, the scissors can still latch on and cut with **{int(row['Hsu_Score']*100)}% probability**! Watch out for this site.")
                 else:
-                    st.info(f"🛡️ **Multiple spelling mistakes at letters #{mismatch_positions}:** With multiple typos spread across the sequence, the scissors will struggle to bind, making cutting unlikely (**{int(row['Hsu_Score']*100)}% chance**).")
+                    st.info(f"🛡️ **Multiple spelling mistakes at letters #{mismatch_positions}:** With multiple typos spread across the sequence, {n_name} will struggle to bind, making cutting unlikely (**{int(row['Hsu_Score']*100)}% chance**).")
         else:
-            st.markdown("""
+            n_desc = st.session_state.metrics.get("nuclease_cleavage_desc", "Blunt double-strand break.")
+            n_cut = st.session_state.metrics.get("nuclease_cut", "BLUNT")
+            aav_str = "Single AAV (<4.7 kb)" if st.session_state.metrics.get("nuclease_aav", False) else "Dual-AAV / LNP"
+            st.markdown(f"""
             <div style="font-size: 0.9rem; color: #8B949E; border-top: 1px solid #30363D; padding-top: 8px;">
-                <span class='arrow-indicator'>✂️ Cas9 Cleavage Site:</span> Located between position 17 and 18 (3 bp upstream of PAM).<br/>
-                <strong>Seed Region (Positions 11–20):</strong> Highly intolerant to mismatches. Mismatches here severely reduce Cas9 cutting.<br/>
-                <strong>Distal Region (Positions 1–10):</strong> More tolerant to mismatches. Primary source of unintended off-target cleavage.
+                <span class='arrow-indicator'>✂️ {n_name} Cleavage Architecture:</span> {n_desc}<br/>
+                <strong>Seed Region (Positions {n_s_start}–{n_s_end}):</strong> Intolerant to mismatches. Disrupts R-loop propagation.<br/>
+                <strong>Break Geometry:</strong> <code>{n_cut}</code> &middot; <strong>Vector Compatibility:</strong> <code>{aav_str}</code>
             </div>
+            """, unsafe_allow_html=True)
             """, unsafe_allow_html=True)
 
         # ----------------- WET-LAB VALIDATION: AUTOMATED PCR PRIMER GENERATOR -----------------

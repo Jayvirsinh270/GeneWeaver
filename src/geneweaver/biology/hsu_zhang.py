@@ -17,15 +17,22 @@ HSU_WEIGHTS = np.array([
 
 def calculate_hsu_zhang_score(target_guide: str, off_target_seq: str) -> float:
     """
-    Computes the Hsu-Zhang score between a 20-nt guide and a 20-nt off-target sequence.
+    Computes the Hsu-Zhang score between a guide and an off-target sequence.
+    Supports standard 20-nt SpCas9 as well as 21-nt SaCas9 and 23-nt Cas12a.
     Score ranges from 0.0 (negligible cleavage) to 1.0 (maximal/on-target cleavage).
     """
-    if len(target_guide) != 20 or len(off_target_seq) != 20:
-        raise ValueError(f"Sequences must be exactly 20nt. Got {len(target_guide)} and {len(off_target_seq)}")
+    if len(target_guide) != len(off_target_seq):
+        raise ValueError(f"Sequences must be of equal length. Got {len(target_guide)} and {len(off_target_seq)}")
 
+    seq_len = len(target_guide)
+    if seq_len == 0:
+        return 0.0
+
+    eval_len = min(seq_len, 20)
     # Identify 1-indexed mismatch positions
-    mismatches = [i + 1 for i in range(20) if target_guide[i].upper() != off_target_seq[i].upper()]
-    n = len(mismatches)
+    mismatches = [i + 1 for i in range(eval_len) if target_guide[i].upper() != off_target_seq[i].upper()]
+    extra_mismatches = [i + 1 for i in range(eval_len, seq_len) if target_guide[i].upper() != off_target_seq[i].upper()]
+    n = len(mismatches) + len(extra_mismatches)
 
     if n == 0:
         return 1.0
@@ -33,12 +40,16 @@ def calculate_hsu_zhang_score(target_guide: str, off_target_seq: str) -> float:
     # 1. Product of (1 - W[i])
     term1 = 1.0
     for pos in mismatches:
-        term1 *= (1.0 - HSU_WEIGHTS[pos])
+        w = HSU_WEIGHTS[pos] if pos < len(HSU_WEIGHTS) else 0.5
+        term1 *= (1.0 - w)
+    for _ in extra_mismatches:
+        term1 *= 0.5
 
     # 2. Mean pairwise distance penalty
-    if n > 1:
-        total_dist = sum(mismatches[k + 1] - mismatches[k] for k in range(n - 1))
-        d_bar = total_dist / (n - 1)
+    all_mismatches = mismatches + extra_mismatches
+    if len(all_mismatches) > 1:
+        total_dist = sum(all_mismatches[k + 1] - all_mismatches[k] for k in range(len(all_mismatches) - 1))
+        d_bar = total_dist / (len(all_mismatches) - 1)
     else:
         d_bar = 19.0
 

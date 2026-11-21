@@ -13,14 +13,18 @@ VALID_DNA_BASES = set("ACGTU")
 VALID_PAM_CHARS = set("ACGTUNRYKMSWBDHV")  # IUPAC nucleotide ambiguity codes
 
 
-def validate_and_clean_guide(guide: str) -> str:
+def validate_and_clean_guide(guide: str, expected_length: int = 20) -> str:
     """
-    Cleanses and validates a 20-nt CRISPR guide RNA sequence.
+    Cleanses and validates a CRISPR guide RNA sequence for a target length.
+    
+    Args:
+        guide: Raw guide RNA / DNA string.
+        expected_length: Required nucleotide length (default: 20 for SpCas9/CasMINI, 21 for SaCas9, 23 for Cas12a).
     
     Returns:
-        Cleaned, uppercase 20-nt guide string (converts 'U' to 'T').
+        Cleaned, uppercase guide string (converts 'U' to 'T').
     Raises:
-        InvalidGuideError if length is not 20 or contains non-nucleotide characters.
+        InvalidGuideError if length does not match expected_length or contains non-nucleotide characters.
     """
     if not guide or not isinstance(guide, str):
         raise InvalidGuideError(str(guide), "Guide sequence cannot be empty or null.")
@@ -30,8 +34,8 @@ def validate_and_clean_guide(guide: str) -> str:
     # Normalize RNA Uracil (U) to DNA Thymine (T)
     clean = clean.replace("U", "T")
 
-    if len(clean) != 20:
-        raise InvalidGuideError(clean, f"Expected exactly 20 nucleotides, but got {len(clean)}.")
+    if len(clean) != expected_length:
+        raise InvalidGuideError(clean, f"Expected exactly {expected_length} nucleotides, but got {len(clean)}.")
 
     invalid_chars = set(clean) - set("ACGT")
     if invalid_chars:

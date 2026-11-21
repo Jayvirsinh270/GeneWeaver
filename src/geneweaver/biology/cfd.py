@@ -42,21 +42,27 @@ BASE_PAIR_WEIGHTS: Dict[Tuple[str, str], float] = {
 
 def calculate_cfd_score(target_guide: str, off_target_seq: str, pam: str = "NGG") -> float:
     """
-    Computes the CFD score between 20-nt guide and 20-nt off-target sequence.
+    Computes the CFD score between guide and off-target sequence.
     Multiplies base-mismatch penalties with the PAM motif affinity score.
+    Supports standard 20-nt SpCas9, 21-nt SaCas9, and 23-nt Cas12a.
     Returns:
         Score between 0.0 (zero cleavage) and 1.0 (maximal on-target cleavage).
     """
-    if len(target_guide) != 20 or len(off_target_seq) != 20:
-        raise ValueError(f"Sequences must be 20nt, got {len(target_guide)} and {len(off_target_seq)}")
+    if len(target_guide) != len(off_target_seq):
+        raise ValueError(f"Sequences must be equal length, got {len(target_guide)} and {len(off_target_seq)}")
 
     # 1. PAM Weight
     pam_upper = pam.upper()
     pam_score = PAM_WEIGHTS.get(pam_upper, 0.0)
     # Check general 2-base motif if 3-base exact key not found
-    if pam_score == 0.0 and len(pam_upper) == 3:
-        pam_tail = "N" + pam_upper[1:]
+    if pam_score == 0.0 and len(pam_upper) >= 3:
+        pam_tail = "N" + pam_upper[1:3]
         pam_score = PAM_WEIGHTS.get(pam_tail, 0.0)
+
+    # Alternate nuclease canonical PAM fallback for Cas12a / CasMINI / SaCas9
+    if pam_score == 0.0:
+        if pam_upper.startswith("TTT") or pam_upper.endswith("RRT"):
+            pam_score = 1.0
 
     if pam_score == 0.0:
         return 0.0
@@ -66,7 +72,10 @@ def calculate_cfd_score(target_guide: str, off_target_seq: str, pam: str = "NGG"
     guide_u = target_guide.upper()
     off_u = off_target_seq.upper()
 
-    for i in range(20):
+    seq_len = len(guide_u)
+    eval_len = min(seq_len, len(DEFAULT_POSITION_PENALTY) - 1)
+
+    for i in range(eval_len):
         pos = i + 1  # 1-indexed
         r_base = guide_u[i]
         d_base = off_u[i]
@@ -77,6 +86,11 @@ def calculate_cfd_score(target_guide: str, off_target_seq: str, pam: str = "NGG"
             pos_weight = DEFAULT_POSITION_PENALTY[pos]
             mismatch_factor = pos_weight * bp_multiplier
             cfd_score *= mismatch_factor
+
+    # Extra positions penalty
+    for i in range(eval_len, seq_len):
+        if guide_u[i] != off_u[i]:
+            cfd_score *= 0.5
 
     return float(max(0.0, min(1.0, cfd_score)))
 

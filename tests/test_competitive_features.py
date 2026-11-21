@@ -166,5 +166,77 @@ def test_3d_structure_viewer():
     assert "STERIC CLASH" in html
 
 
+def test_multi_nuclease_architecture():
+    from geneweaver.biology.nucleases import (
+        get_supported_nucleases,
+        evaluate_nuclease_compatibility,
+        NUCLEASE_REGISTRY
+    )
+
+    nucleases = get_supported_nucleases()
+    assert "sp_cas9" in nucleases
+    assert "cas12a_cpf1" in nucleases
+    assert "sa_cas9" in nucleases
+    assert "cas_mini" in nucleases
+
+    # 1. SpCas9 evaluation (20nt)
+    ev_sp = evaluate_nuclease_compatibility("sp_cas9", "GAGTCCGAGCAGAAGAAGAA")
+    assert ev_sp.is_valid_length is True
+    assert ev_sp.expected_length == 20
+    assert ev_sp.cut_type == "BLUNT"
+
+    # 2. Cas12a evaluation (23nt)
+    ev_c12 = evaluate_nuclease_compatibility("cas12a_cpf1", "GAGTCCGAGCAGAAGAAGAATTT")
+    assert ev_c12.is_valid_length is True
+    assert ev_c12.expected_length == 23
+    assert ev_c12.cut_type == "STAGGERED_5NT_OVERHANG"
+
+    # 3. SaCas9 evaluation (21nt)
+    ev_sa = evaluate_nuclease_compatibility("sa_cas9", "GAGTCCGAGCAGAAGAAGAAT")
+    assert ev_sa.is_valid_length is True
+    assert ev_sa.expected_length == 21
+    assert ev_sa.aav_single_vector_fit is True
+
+    # 4. Multi-Nuclease Aligner Tests
+    from geneweaver.baseline.cpu_aligner import CpuAligner
+    from geneweaver.parser.validator import validate_and_clean_guide
+
+    # Test Cas12a alignment with 5' PAM (TTTV)
+    cas12_guide = "GAGTCCGAGCAGAAGAAGAATTT"
+    clean_c12 = validate_and_clean_guide(cas12_guide, expected_length=23)
+    assert len(clean_c12) == 23
+
+    aligner_c12 = CpuAligner(
+        target_guide=clean_c12,
+        pam_motif="TTTA",
+        max_mismatches=2,
+        pam_orientation="5_PRIME"
+    )
+    # Synthetic target with 5' TTTA followed by exact 23nt guide
+    synth_target = "ACGT" + "TTTA" + clean_c12 + "ACGT"
+    hits = aligner_c12.align_sequence(synth_target)
+    assert len(hits) == 1
+    assert hits[0].mismatches == 0
+    assert hits[0].hsu_score == 1.0
+
+    # Test SaCas9 alignment with 3' PAM (NNGRRT)
+    sa_guide = "GAGTCCGAGCAGAAGAAGAAT"
+    clean_sa = validate_and_clean_guide(sa_guide, expected_length=21)
+    assert len(clean_sa) == 21
+
+    aligner_sa = CpuAligner(
+        target_guide=clean_sa,
+        pam_motif="NNGGAT",
+        max_mismatches=2,
+        pam_orientation="3_PRIME"
+    )
+    synth_sa = "ACGT" + clean_sa + "AAGGAT" + "ACGT"
+    hits_sa = aligner_sa.align_sequence(synth_sa)
+    assert len(hits_sa) == 1
+    assert hits_sa[0].mismatches == 0
+
+
+
+
 
 
