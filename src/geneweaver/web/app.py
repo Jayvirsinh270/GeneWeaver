@@ -36,6 +36,15 @@ from geneweaver.biology.optimizer import repair_and_optimize_guide, AutoRepairDo
 from geneweaver.biology.gene_search import search_genes_and_diseases, extract_and_design_sgrnas_for_gene, GENE_DATABASE, TargetGeneEntry
 from geneweaver.biology.delivery_sim import simulate_in_vivo_delivery, CELL_TYPE_PROFILES, DELIVERY_MODALITIES, DeliverySimulationResult
 from geneweaver.biology.nucleases import get_supported_nucleases, evaluate_nuclease_compatibility, NUCLEASE_REGISTRY, NucleaseProfile
+from geneweaver.biology.base_editor import (
+    get_supported_base_editors,
+    simulate_base_editing,
+    design_pegrna,
+    BASE_EDITOR_REGISTRY,
+    BaseEditorProfile,
+    BaseEditingOutcome,
+    PegRNADesign
+)
 from geneweaver.web.ideogram import build_karyotype_ideogram_plot
 from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
 from geneweaver.web.structure_viewer import generate_3dmol_html
@@ -1203,11 +1212,13 @@ with tab3:
     else:
         st.info("Run a scan to view tabular data.")
 
-# ----------------- TAB 4: AUTONOMOUS REPAIR STUDIO, SCRATCHPAD & DUEL -----------------
+# ----------------- TAB 4: AUTONOMOUS REPAIR, BASE & PRIME EDITING STUDIO -----------------
 with tab4:
-    studio_subtab1, studio_subtab2, studio_subtab3 = st.tabs([
+    studio_subtab1, studio_subtab2, studio_subtab3, studio_subtab4, studio_subtab5 = st.tabs([
         "✨ Autonomous Guide Auto-Repair Studio",
-        "🧬 In-Silico Live Mutation Scratchpad",
+        "🎯 Base Editing Window & Bystander Simulator",
+        "🧬 Prime Editing pegRNA Architect",
+        "🔬 In-Silico Live Mutation Scratchpad",
         "⚔️ Head-to-Head Multi-Guide Duel"
     ])
 
@@ -1284,8 +1295,194 @@ with tab4:
         except Exception as e:
             st.error(f"Auto-Repair could not process sequence: {e}")
 
-    # ---------------- SUBTAB 2: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
+    # ---------------- SUBTAB 2: BASE EDITING (CBE / ABE) SIMULATOR ----------------
     with studio_subtab2:
+        st.subheader("🎯 Precision Base Editing (CBE & ABE) & Bystander Mutation Simulator")
+        st.caption(
+            "Model Cytosine (C·G &rarr; T·A) and Adenine (A·T &rarr; G·C) deamination windows without double-stranded breaks. "
+            "Detects accidental bystander mutations within the protospacer activity window."
+        )
+
+        be_col1, be_col2, be_col3 = st.columns([1, 2, 1])
+        base_editors = get_supported_base_editors()
+        with be_col1:
+            sel_editor = st.selectbox(
+                "Base Editor System",
+                options=list(base_editors.keys()),
+                format_func=lambda k: base_editors[k].name,
+                key="be_editor_choice"
+            )
+        ed_obj = base_editors[sel_editor]
+
+        with be_col2:
+            be_proto = st.text_input(
+                "Protospacer Sequence (20 nt)",
+                value=raw_guide[:20],
+                max_chars=20,
+                key="be_proto_input"
+            ).upper().strip()
+
+        with be_col3:
+            target_pos = st.number_input(
+                "Target Base Position (1–20)",
+                min_value=1,
+                max_value=20,
+                value=5,
+                key="be_target_pos_input"
+            )
+
+        if len(be_proto) == 20:
+            be_res = simulate_base_editing(be_proto, target_pos, sel_editor)
+
+            # Overview Metrics
+            m_be1, m_be2, m_be3, m_be4 = st.columns(4)
+            with m_be1:
+                st.metric("Primary Edit Conversion", f"{be_res.predicted_on_target_efficiency_pct}%", delta=f"{be_res.target_base} → {be_res.converted_base}")
+            with m_be2:
+                p_delta = "High Purity" if be_res.product_purity_score_pct >= 85 else ("Moderate" if be_res.product_purity_score_pct >= 50 else "Heterogeneous")
+                st.metric("Product Purity Score", f"{be_res.product_purity_score_pct}%", delta=p_delta)
+            with m_be3:
+                b_color = "normal" if be_res.bystander_count == 0 else ("off" if be_res.bystander_count == 1 else "inverse")
+                st.metric("Bystander Mutations", f"{be_res.bystander_count}", delta=be_res.bystander_risk_tier, delta_color=b_color)
+            with m_be4:
+                st.metric("Editing Activity Window", f"nt {be_res.window_range[0]}–{be_res.window_range[1]}", delta="In Window" if be_res.is_target_in_window else "Outside Window")
+
+            # Visual Protospacer with Deamination Window
+            tiles_be = ""
+            w_start, w_end = be_res.window_range
+            bystander_positions = [b.position for b in be_res.bystanders_found]
+
+            for idx, char in enumerate(be_proto):
+                pos = idx + 1
+                in_w = (w_start <= pos <= w_end)
+                is_target = (pos == target_pos)
+                is_bystander = (pos in bystander_positions)
+
+                if is_target:
+                    bg = "#00E676"
+                    fg = "#0A0E17"
+                    border = "2px solid #FFFFFF"
+                    lbl = "TARGET"
+                elif is_bystander:
+                    bg = "#FF1744"
+                    fg = "#FFFFFF"
+                    border = "2px solid #FF5252"
+                    lbl = "BYSTAND"
+                elif in_w:
+                    bg = "#1F2937"
+                    fg = "#00F0FF"
+                    border = "1px dashed #00F0FF"
+                    lbl = "WIN"
+                else:
+                    bg = "#161B22"
+                    fg = "#8B949E"
+                    border = "1px solid #30363D"
+                    lbl = str(pos)
+
+                tiles_be += f"<span style='display:inline-block; margin:2px; padding:6px 9px; background:{bg}; border:{border}; border-radius:6px; font-family:monospace; font-weight:bold; font-size:1.05rem; color:{fg}; text-align:center;'>{char}<br/><sub style='font-size:0.6rem;'>{lbl}</sub></span>"
+
+            st.markdown(f"<div style='margin: 16px 0; padding: 12px; background: #0D1117; border: 1px solid #30363D; border-radius: 8px;'>{tiles_be}</div>", unsafe_allow_html=True)
+            st.caption("Green: Intended deamination target · Red: Unintended bystander mutation · Cyan dashed border: Deamination catalytic window")
+
+            # Sequence comparison & alleles
+            st.markdown(f"**Clean Edited Sequence:** `5'-{be_res.edited_protospacer}-3'` &middot; Editor Architecture: *{ed_obj.nickase_architecture}*")
+            st.markdown(f"**Biophysical Verdict:** {be_res.biophysical_verdict}")
+            st.info(f"💡 **Clinical Guidance:** {be_res.remediation_guidance}")
+
+            if be_res.all_possible_alleles:
+                with st.expander("🧬 **Predicted Allelic Breakdown (Combinatorial Bystander Outcomes)**", expanded=False):
+                    for a_idx, al in enumerate(be_res.all_possible_alleles):
+                        st.code(f"Allele #{a_idx+1}: {al}")
+        else:
+            st.warning("Enter a 20-nucleotide protospacer sequence to simulate base editing.")
+
+    # ---------------- SUBTAB 3: PRIME EDITING (pegRNA) ARCHITECT ----------------
+    with studio_subtab3:
+        st.subheader("🧬 Prime Editing (pegRNA) Architect (Search-and-Replace Genome Editing)")
+        st.caption(
+            "Automate the design of prime editing guide RNAs (pegRNAs). Generates Reverse Transcription Template (RTT) "
+            "and Primer Binding Site (PBS) without double-stranded DNA breaks or viral donor templates."
+        )
+
+        pe_col1, pe_col2, pe_col3 = st.columns([1, 1, 1])
+        with pe_col1:
+            pe_edit_type = st.selectbox(
+                "Intended Mutation Type",
+                ["SUBSTITUTION", "INSERTION", "DELETION"],
+                key="pe_edit_type_choice"
+            )
+        with pe_col2:
+            pe_offset = st.slider(
+                "Nick-to-Edit Distance (bp)",
+                min_value=1,
+                max_value=20,
+                value=4,
+                help="Distance downstream of the Cas9 nick site (between positions 17 and 18)."
+            )
+        with pe_col3:
+            pe_pbs_len = st.slider(
+                "PBS Length (nt)",
+                min_value=10,
+                max_value=16,
+                value=13,
+                help="Optimal PBS length is typically 12–14 nt for melting temperatures between 30°C and 38°C."
+            )
+
+        pe_col4, pe_col5 = st.columns([2, 1])
+        with pe_col4:
+            pe_seq_in = st.text_input(
+                "Desired Synthesized Sequence (to write into DNA)",
+                value="T",
+                max_chars=25,
+                key="pe_desired_seq"
+            ).upper().strip()
+        with pe_col5:
+            pe_proto = st.text_input(
+                "Spacer Sequence (20 nt)",
+                value=raw_guide[:20],
+                max_chars=20,
+                key="pe_spacer_seq"
+            ).upper().strip()
+
+        if len(pe_proto) == 20 and len(pe_seq_in) > 0:
+            pe_design = design_pegrna(
+                target_guide=pe_proto,
+                edit_type=pe_edit_type,
+                edit_offset_from_nick=pe_offset,
+                desired_sequence=pe_seq_in,
+                pbs_length=pe_pbs_len
+            )
+
+            # Telemetry metrics
+            m_pe1, m_pe2, m_pe3, m_pe4 = st.columns(4)
+            with m_pe1:
+                tm_color = "normal" if 30 <= pe_design.pbs_tm_celsius <= 38 else "inverse"
+                st.metric("PBS Melting Temp (Tm)", f"{pe_design.pbs_tm_celsius}°C", delta="Ideal 30–38°C", delta_color=tm_color)
+            with m_pe2:
+                st.metric("PBS Length & GC", f"{pe_design.pbs_length_nt} nt", delta=f"{pe_design.pbs_gc_pct}% GC")
+            with m_pe3:
+                st.metric("RTT Length", f"{pe_design.rtt_length_nt} nt", delta=f"+{pe_design.nick_to_edit_distance_bp} bp offset")
+            with m_pe4:
+                feas_col = "normal" if pe_design.feasibility_score >= 80 else ("off" if pe_design.feasibility_score >= 60 else "inverse")
+                st.metric("Feasibility Rating", f"{pe_design.feasibility_score}/100", delta=pe_design.feasibility_tier, delta_color=feas_col)
+
+            st.markdown("#### 🔬 Synthesized pegRNA Subcomponents")
+            c_r1, c_r2 = st.columns(2)
+            with c_r1:
+                st.markdown(f"**Primer Binding Site (PBS, 3' terminus):**\n```text\n{pe_design.pbs_seq}\n```")
+            with c_r2:
+                st.markdown(f"**Reverse Transcription Template (RTT):**\n```text\n{pe_design.rtt_seq}\n```")
+
+            st.markdown(f"**Complete Full-Length pegRNA Sequence ({len(pe_design.composite_pegrna_seq)} nt):**")
+            st.code(pe_design.composite_pegrna_seq, language="text")
+
+            for rec in pe_design.recommendations:
+                st.caption(f"💡 {rec}")
+        else:
+            st.info("Enter a 20-nt spacer and desired edit sequence to synthesize the pegRNA.")
+
+    # ---------------- SUBTAB 4: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
+    with studio_subtab4:
         st.subheader("🧬 In-Silico Live Mutation Scratchpad (Reactive DNA Synthesizer)")
         st.caption("Interactively edit individual nucleotides to preview on-target cleavage efficiency, GC stability, and binding thermodynamics in real-time:")
 
@@ -1343,8 +1540,8 @@ with tab4:
         else:
             st.info(f"Enter exactly 20 nucleotides to activate live biophysical telemetry ({len(scratch_seq)}/20 entered).")
 
-    # ---------------- SUBTAB 3: HEAD-TO-HEAD DUEL ----------------
-    with studio_subtab3:
+    # ---------------- SUBTAB 5: HEAD-TO-HEAD DUEL ----------------
+    with studio_subtab5:
         st.subheader("⚔️ Head-to-Head Multi-Guide Duel")
         st.caption("Compare two candidate sgRNAs side-by-side to select the optimal clinical lead:")
 
@@ -1569,3 +1766,56 @@ TOP REPORTED SITES & GENOMIC LOCI:
         st.info("Zero off-target mutations detected to export. Target sequence is 100% specific!")
     else:
         st.info("Execute a scan to generate export files.")
+
+    # ---------------- REST API MICROSERVICE INTEGRATION ----------------
+    st.markdown("---")
+    st.subheader("🌐 Production REST API & Computational Pipeline Integration")
+    st.caption("GeneWeaver provides an enterprise-ready FastAPI microservice for integration with Nextflow, Snakemake, Python pipelines, and cloud clusters.")
+
+    api_c1, api_c2 = st.columns([1, 1])
+    with api_c1:
+        st.markdown("""
+        #### 🚀 Local Microservice Endpoints
+        * **Interactive Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+        * **ReDoc Interactive Reference:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+        * **OpenAPI 3.1 JSON Schema:** [http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json)
+
+        **Quick Launch Command:**
+        ```powershell
+        .\\launch_api.bat
+        # or
+        python -m uvicorn geneweaver.api.app:app --reload
+        ```
+        """)
+
+    with api_c2:
+        api_lang = st.radio("Choose API Client Snippet:", ["cURL", "Python (Requests)", "TypeScript / Node"], horizontal=True)
+        if api_lang == "cURL":
+            st.code(f"""# Align & Score Guide via REST API
+curl -X POST "http://127.0.0.1:8000/api/v1/align" \\
+  -H "Content-Type: application/json" \\
+  -d '{{"guide_sequence": "{raw_guide[:20]}", "pam_motif": "NGG", "target_dna_sequence": "GAGTCCGAGCAGAAGAAGAATGGACGT", "max_mismatches": 3}}'""", language="bash")
+        elif api_lang == "Python (Requests)":
+            st.code(f"""import requests
+
+payload = {{
+    "guide_sequence": "{raw_guide[:20]}",
+    "pam_motif": "NGG",
+    "target_dna_sequence": "GAGTCCGAGCAGAAGAAGAATGGACGT",
+    "max_mismatches": 3
+}}
+res = requests.post("http://127.0.0.1:8000/api/v1/align", json=payload)
+print(res.json())""", language="python")
+        else:
+            st.code(f"""const res = await fetch("http://127.0.0.1:8000/api/v1/align", {{
+  method: "POST",
+  headers: {{ "Content-Type": "application/json" }},
+  body: JSON.stringify({{
+    guide_sequence: "{raw_guide[:20]}",
+    pam_motif: "NGG",
+    target_dna_sequence: "GAGTCCGAGCAGAAGAAGAATGGACGT",
+    max_mismatches: 3
+  }})
+}});
+const data = await res.json();
+console.log(data);""", language="typescript")
