@@ -1093,7 +1093,6 @@ with tab2:
                 <strong>Break Geometry:</strong> <code>{n_cut}</code> &middot; <strong>Vector Compatibility:</strong> <code>{aav_str}</code>
             </div>
             """, unsafe_allow_html=True)
-            """, unsafe_allow_html=True)
 
         # ----------------- WET-LAB VALIDATION: AUTOMATED PCR PRIMER GENERATOR -----------------
         st.markdown("---")
