@@ -45,6 +45,15 @@ from geneweaver.biology.base_editor import (
     BaseEditingOutcome,
     PegRNADesign
 )
+from geneweaver.biology.dual_guide import (
+    simulate_dual_guide_excision,
+    design_excision_junction_primers,
+    CLINICAL_EXCISION_PRESETS,
+    ExcisionSimulationResult,
+    VirtualGelLane,
+    VirtualGelBand
+)
+from geneweaver.web.gel_visualizer import build_virtual_gel_plot
 from geneweaver.web.ideogram import build_karyotype_ideogram_plot
 from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
 from geneweaver.web.structure_viewer import generate_3dmol_html
@@ -1213,8 +1222,9 @@ with tab3:
 
 # ----------------- TAB 4: AUTONOMOUS REPAIR, BASE & PRIME EDITING STUDIO -----------------
 with tab4:
-    studio_subtab1, studio_subtab2, studio_subtab3, studio_subtab4, studio_subtab5 = st.tabs([
+    studio_subtab1, studio_subtab2, studio_subtab3, studio_subtab4, studio_subtab5, studio_subtab6 = st.tabs([
         "✨ Autonomous Guide Auto-Repair Studio",
+        "✂️ Dual-Guide Excision & Nickase (Virtual Gel)",
         "🎯 Base Editing Window & Bystander Simulator",
         "🧬 Prime Editing pegRNA Architect",
         "🔬 In-Silico Live Mutation Scratchpad",
@@ -1294,8 +1304,144 @@ with tab4:
         except Exception as e:
             st.error(f"Auto-Repair could not process sequence: {e}")
 
-    # ---------------- SUBTAB 2: BASE EDITING (CBE / ABE) SIMULATOR ----------------
+    # ---------------- SUBTAB 2: DUAL-GUIDE EXCISION & NICKASE (VIRTUAL GEL) ----------------
     with studio_subtab2:
+        st.subheader("✂️ Dual-Guide Genomic Excision & Paired Nickase (D10A) Architect")
+        st.caption(
+            "Simulate coordinated dual-guide excision for exon skipping (e.g. DMD Exon 51), oncogene deletion, or viral provirus removal. "
+            "Evaluates deletion vs inversion kinetics, paired D10A nickase offsets, and renders a virtual agarose gel."
+        )
+
+        # Preset selection
+        st.markdown("##### 🧬 Load Clinical Excision Benchmark")
+        exc_presets = CLINICAL_EXCISION_PRESETS
+        p_cols = st.columns(3)
+        
+        # Default session state for dual guide
+        if "dual_g_a" not in st.session_state:
+            st.session_state.dual_g_a = exc_presets["dmd_exon_51_skipping"]["guide_a"]
+            st.session_state.dual_g_b = exc_presets["dmd_exon_51_skipping"]["guide_b"]
+            st.session_state.dual_cut_a = exc_presets["dmd_exon_51_skipping"]["cut_a"]
+            st.session_state.dual_cut_b = exc_presets["dmd_exon_51_skipping"]["cut_b"]
+            st.session_state.dual_label = exc_presets["dmd_exon_51_skipping"]["title"]
+            st.session_state.dual_strand_a = exc_presets["dmd_exon_51_skipping"]["strand_a"]
+            st.session_state.dual_strand_b = exc_presets["dmd_exon_51_skipping"]["strand_b"]
+
+        if p_cols[0].button("🧬 DMD Exon 51 Skipping", use_container_width=True, key="btn_dmd_excision"):
+            p = exc_presets["dmd_exon_51_skipping"]
+            st.session_state.dual_g_a = p["guide_a"]
+            st.session_state.dual_g_b = p["guide_b"]
+            st.session_state.dual_cut_a = p["cut_a"]
+            st.session_state.dual_cut_b = p["cut_b"]
+            st.session_state.dual_label = p["title"]
+            st.session_state.dual_strand_a = p["strand_a"]
+            st.session_state.dual_strand_b = p["strand_b"]
+            st.rerun()
+
+        if p_cols[1].button("🎗️ EGFR Exon 19 Deletion", use_container_width=True, key="btn_egfr_excision"):
+            p = exc_presets["egfr_exon_19_deletion"]
+            st.session_state.dual_g_a = p["guide_a"]
+            st.session_state.dual_g_b = p["guide_b"]
+            st.session_state.dual_cut_a = p["cut_a"]
+            st.session_state.dual_cut_b = p["cut_b"]
+            st.session_state.dual_label = p["title"]
+            st.session_state.dual_strand_a = p["strand_a"]
+            st.session_state.dual_strand_b = p["strand_b"]
+            st.rerun()
+
+        if p_cols[2].button("🛡️ HIV-1 LTR Excision", use_container_width=True, key="btn_hiv_excision"):
+            p = exc_presets["hiv1_proviral_ltr_excision"]
+            st.session_state.dual_g_a = p["guide_a"]
+            st.session_state.dual_g_b = p["guide_b"]
+            st.session_state.dual_cut_a = p["cut_a"]
+            st.session_state.dual_cut_b = p["cut_b"]
+            st.session_state.dual_label = p["title"]
+            st.session_state.dual_strand_a = p["strand_a"]
+            st.session_state.dual_strand_b = p["strand_b"]
+            st.rerun()
+
+        st.caption(f"Active Model: **{st.session_state.dual_label}**")
+        st.markdown("---")
+
+        # Inputs for Guide A and Guide B
+        g_col1, g_col2 = st.columns(2)
+        with g_col1:
+            st.markdown("#### 🅰️ 5' Upstream Guide A")
+            dg_a = st.text_input("Guide A Spacer (20 nt)", value=st.session_state.dual_g_a, max_chars=20, key="dg_input_a").upper().strip()
+            c_pos_a = st.number_input("Cut Position A (bp)", min_value=1, value=int(st.session_state.dual_cut_a), key="dg_pos_a")
+            st_a = st.selectbox("Guide A Strand", ["(+)", "(-)"], index=0 if st.session_state.dual_strand_a == "(+)" else 1, key="dg_strand_a")
+
+        with g_col2:
+            st.markdown("#### 🅱️ 3' Downstream Guide B")
+            dg_b = st.text_input("Guide B Spacer (20 nt)", value=st.session_state.dual_g_b, max_chars=20, key="dg_input_b").upper().strip()
+            c_pos_b = st.number_input("Cut Position B (bp)", min_value=1, value=int(st.session_state.dual_cut_b), key="dg_pos_b")
+            st_b = st.selectbox("Guide B Strand", ["(+)", "(-)"], index=1 if st.session_state.dual_strand_b == "(-)" else 0, key="dg_strand_b")
+
+        # Nuclease Architecture Mode
+        mode_col1, mode_col2 = st.columns([1, 1])
+        with mode_col1:
+            nuc_mode = st.radio(
+                "Cleavage Endonuclease Mode",
+                ["Standard Dual Cas9 (Simultaneous DSBs)", "Paired Cas9 D10A Nickases (Single-Strand Nicks)"],
+                index=0,
+                key="dg_nuc_mode"
+            )
+            is_nick = "Nickase" in nuc_mode
+
+        if len(dg_a) == 20 and len(dg_b) == 20:
+            exc_res = simulate_dual_guide_excision(
+                guide_a_seq=dg_a,
+                guide_b_seq=dg_b,
+                cut_pos_a=int(c_pos_a),
+                cut_pos_b=int(c_pos_b),
+                is_nickase_mode=is_nick,
+                strand_a=st_a,
+                strand_b=st_b
+            )
+
+            # Metrics
+            m_ex1, m_ex2, m_ex3, m_ex4 = st.columns(4)
+            with m_ex1:
+                st.metric("Target Deletion Span", f"{exc_res.deletion_span_bp:,} bp", delta="Excision Gap")
+            with m_ex2:
+                st.metric("Predicted Deletion Rate", f"{exc_res.predicted_deletion_efficiency_pct}%", delta="Target Excision")
+            with m_ex3:
+                st.metric("Inversion Artifact Rate", f"{exc_res.predicted_inversion_rate_pct}%", delta="Inverted Fragment", delta_color="inverse")
+            with m_ex4:
+                pot_delta = "High Potency" if exc_res.composite_cutting_potency >= 60 else "Moderate"
+                st.metric("Composite Cut Potency", f"{exc_res.composite_cutting_potency}/100", delta=pot_delta)
+
+            # Virtual Gel Electrophoresis Display
+            st.markdown("---")
+            st.markdown("#### 🧪 Virtual Agarose Gel Electrophoresis")
+            st.caption("Predicted electrophoretic migration comparison between Untreated Control (Wildtype) and Dual-Guide Edited Amplicons:")
+            gel_fig = build_virtual_gel_plot(exc_res.virtual_gel_lanes, height=450)
+            st.plotly_chart(gel_fig, use_container_width=True)
+
+            # Excision Junction Sequence & Primers
+            st.markdown("#### 🔬 Deletion Junction & PCR Screening Primers")
+            st.markdown(f"**Recombined Deletion Junction:**\n`{exc_res.deletion_junction_sequence}`")
+            st.caption(exc_res.clinical_recommendation)
+
+            j_primers = design_excision_junction_primers(
+                chrom="Target Chromosome",
+                cut_pos_a=int(c_pos_a),
+                cut_pos_b=int(c_pos_b)
+            )
+            jp_c1, jp_c2 = st.columns(2)
+            with jp_c1:
+                st.markdown(f"**Forward Screening Primer (5' &rarr; 3'):**\n```text\n{j_primers['forward_primer_5to3']}\n```\n* Tm: `{j_primers['forward_tm']}°C` | GC: `{j_primers['forward_gc']}%`")
+            with jp_c2:
+                st.markdown(f"**Reverse Screening Primer (5' &rarr; 3'):**\n```text\n{j_primers['reverse_primer_5to3']}\n```\n* Tm: `{j_primers['reverse_tm']}°C` | GC: `{j_primers['reverse_gc']}%`")
+
+            if exc_res.biophysical_warnings:
+                for w in exc_res.biophysical_warnings:
+                    st.warning(f"⚠️ {w}")
+        else:
+            st.warning("Please ensure both Guide A and Guide B spacers are exactly 20 nucleotides.")
+
+    # ---------------- SUBTAB 3: BASE EDITING (CBE / ABE) SIMULATOR ----------------
+    with studio_subtab3:
         st.subheader("🎯 Precision Base Editing (CBE & ABE) & Bystander Mutation Simulator")
         st.caption(
             "Model Cytosine (C·G &rarr; T·A) and Adenine (A·T &rarr; G·C) deamination windows without double-stranded breaks. "
@@ -1395,8 +1541,8 @@ with tab4:
         else:
             st.warning("Enter a 20-nucleotide protospacer sequence to simulate base editing.")
 
-    # ---------------- SUBTAB 3: PRIME EDITING (pegRNA) ARCHITECT ----------------
-    with studio_subtab3:
+    # ---------------- SUBTAB 4: PRIME EDITING (pegRNA) ARCHITECT ----------------
+    with studio_subtab4:
         st.subheader("🧬 Prime Editing (pegRNA) Architect (Search-and-Replace Genome Editing)")
         st.caption(
             "Automate the design of prime editing guide RNAs (pegRNAs). Generates Reverse Transcription Template (RTT) "
@@ -1480,8 +1626,8 @@ with tab4:
         else:
             st.info("Enter a 20-nt spacer and desired edit sequence to synthesize the pegRNA.")
 
-    # ---------------- SUBTAB 4: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
-    with studio_subtab4:
+    # ---------------- SUBTAB 5: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
+    with studio_subtab5:
         st.subheader("🧬 In-Silico Live Mutation Scratchpad (Reactive DNA Synthesizer)")
         st.caption("Interactively edit individual nucleotides to preview on-target cleavage efficiency, GC stability, and binding thermodynamics in real-time:")
 
@@ -1539,8 +1685,8 @@ with tab4:
         else:
             st.info(f"Enter exactly 20 nucleotides to activate live biophysical telemetry ({len(scratch_seq)}/20 entered).")
 
-    # ---------------- SUBTAB 5: HEAD-TO-HEAD DUEL ----------------
-    with studio_subtab5:
+    # ---------------- SUBTAB 6: HEAD-TO-HEAD DUEL ----------------
+    with studio_subtab6:
         st.subheader("⚔️ Head-to-Head Multi-Guide Duel")
         st.caption("Compare two candidate sgRNAs side-by-side to select the optimal clinical lead:")
 

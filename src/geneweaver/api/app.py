@@ -35,6 +35,11 @@ from geneweaver.biology.base_editor import (
     design_pegrna,
     BASE_EDITOR_REGISTRY
 )
+from geneweaver.biology.dual_guide import (
+    simulate_dual_guide_excision,
+    design_excision_junction_primers,
+    CLINICAL_EXCISION_PRESETS
+)
 from geneweaver.biology.gene_search import search_genes_and_diseases, extract_and_design_sgrnas_for_gene, GENE_DATABASE
 
 app = FastAPI(
@@ -103,6 +108,26 @@ class DeliverySimRequest(BaseModel):
     delivery_modality: str = Field("LNP (Lipid Nanoparticles)", description="Delivery vector: LNP, AAV, Electroporation, VLP")
     on_target_score: float = Field(80.0, ge=0.0, le=100.0)
     high_risk_off_targets: int = Field(0, ge=0)
+
+
+class DualGuideExcisionRequest(BaseModel):
+    guide_a_sequence: str = Field(..., description="5' upstream guide spacer (20 nt)", examples=["GGTTAATCCTTCAGCACATC"])
+    guide_b_sequence: str = Field(..., description="3' downstream guide spacer (20 nt)", examples=["AGTTTTAATTTCATTCATTT"])
+    cut_pos_a: int = Field(..., description="Chromosomal cut position A", examples=[1000])
+    cut_pos_b: int = Field(..., description="Chromosomal cut position B", examples=[1580])
+    is_nickase_mode: bool = Field(False, description="Whether to use paired Cas9 D10A nickases")
+    strand_a: str = Field("(+)", description="Strand of guide A: (+) or (-)")
+    strand_b: str = Field("(-)", description="Strand of guide B: (+) or (-)")
+    pam_a: str = Field("NGG", description="PAM motif for guide A")
+    pam_b: str = Field("NGG", description="PAM motif for guide B")
+
+
+class ExcisionPrimerRequest(BaseModel):
+    chromosome: str = Field("chrX", examples=["chrX"])
+    cut_pos_a: int = Field(..., examples=[1000])
+    cut_pos_b: int = Field(..., examples=[1580])
+    upstream_flank_dna: Optional[str] = Field("GACGTACTGACGTACGTACTGACGTACTGACGTACGTACT")
+    downstream_flank_dna: Optional[str] = Field("TGCATGCACTGCATGCACTGTGCATGCACTGCATGCACTG")
 
 
 # ----------------- API ENDPOINTS -----------------
@@ -409,3 +434,60 @@ def list_base_editors():
         }
         for k, v in beds.items()
     }
+
+
+@app.post("/api/v1/dual-guide/excision", summary="Simulate Dual-Guide Genomic Excision & Nickase Kinetics")
+def simulate_dual_guide_endpoint(req: DualGuideExcisionRequest):
+    try:
+        clean_a = validate_and_clean_guide(req.guide_a_sequence, expected_length=20)
+        clean_b = validate_and_clean_guide(req.guide_b_sequence, expected_length=20)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    res = simulate_dual_guide_excision(
+        guide_a_seq=clean_a,
+        guide_b_seq=clean_b,
+        cut_pos_a=req.cut_pos_a,
+        cut_pos_b=req.cut_pos_b,
+        is_nickase_mode=req.is_nickase_mode,
+        strand_a=req.strand_a,
+        strand_b=req.strand_b,
+        pam_a=req.pam_a,
+        pam_b=req.pam_b
+    )
+
+    return {
+        "deletion_span_bp": res.deletion_span_bp,
+        "is_nickase_mode": res.is_nickase_mode,
+        "nickase_offset_bp": res.nickase_offset_bp,
+        "nickase_orientation": res.nickase_orientation,
+        "predicted_deletion_efficiency_pct": res.predicted_deletion_efficiency_pct,
+        "predicted_inversion_rate_pct": res.predicted_inversion_rate_pct,
+        "predicted_unedited_or_indel_rate_pct": res.predicted_unedited_or_indel_rate_pct,
+        "guide_a_on_target_score": res.guide_a_on_target_score,
+        "guide_b_on_target_score": res.guide_b_on_target_score,
+        "composite_cutting_potency": res.composite_cutting_potency,
+        "off_target_safety_advantage": res.off_target_safety_advantage,
+        "wildtype_amplicon_bp": res.wildtype_amplicon_bp,
+        "deleted_amplicon_bp": res.deleted_amplicon_bp,
+        "deletion_junction_sequence": res.deletion_junction_sequence,
+        "clinical_recommendation": res.clinical_recommendation,
+        "biophysical_warnings": res.biophysical_warnings
+    }
+
+
+@app.post("/api/v1/dual-guide/primers", summary="Design Excision Junction PCR Screening Primers")
+def design_junction_primers_endpoint(req: ExcisionPrimerRequest):
+    primers = design_excision_junction_primers(
+        chrom=req.chromosome,
+        cut_pos_a=req.cut_pos_a,
+        cut_pos_b=req.cut_pos_b,
+        upstream_flank_dna=req.upstream_flank_dna or "GACGTACTGACGTACGTACTGACGTACTGACGTACGTACT",
+        downstream_flank_dna=req.downstream_flank_dna or "TGCATGCACTGCATGCACTGTGCATGCACTGCATGCACTG"
+    )
+    return primers
+
+
+@app.get("/api/v1/dual-guide/presets", summary="List Clinical Excision & Exon Skipping Benchmarks")
+def list_excision_presets():
+    return CLINICAL_EXCISION_PRESETS

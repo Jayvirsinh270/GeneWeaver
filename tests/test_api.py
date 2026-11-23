@@ -14,12 +14,17 @@ from geneweaver.api.app import (
     search_genes,
     list_nucleases,
     list_base_editors,
+    simulate_dual_guide_endpoint,
+    design_junction_primers_endpoint,
+    list_excision_presets,
     AlignRequest,
     OnTargetRequest,
     BaseEditRequest,
     PrimeEditRequest,
     DeliverySimRequest,
-    PrimerRequest
+    PrimerRequest,
+    DualGuideExcisionRequest,
+    ExcisionPrimerRequest
 )
 
 
@@ -124,3 +129,36 @@ def test_api_base_editors():
     data = list_base_editors()
     assert "be4max" in data
     assert "abe8e" in data
+
+
+def test_api_dual_guide_excision():
+    req = DualGuideExcisionRequest(
+        guide_a_sequence="GGTTAATCCTTCAGCACATC",
+        guide_b_sequence="AGTTTTAATTTCATTCATTT",
+        cut_pos_a=1000,
+        cut_pos_b=1580,
+        is_nickase_mode=False
+    )
+    data = simulate_dual_guide_endpoint(req)
+    assert data["deletion_span_bp"] == 580
+    assert data["predicted_deletion_efficiency_pct"] > 0.0
+    assert data["wildtype_amplicon_bp"] > data["deleted_amplicon_bp"]
+
+
+def test_api_dual_guide_primers():
+    req = ExcisionPrimerRequest(
+        chromosome="chrX",
+        cut_pos_a=1000,
+        cut_pos_b=1580
+    )
+    data = design_junction_primers_endpoint(req)
+    assert data["chromosome"] == "chrX"
+    assert "forward_primer_5to3" in data
+    assert "reverse_primer_5to3" in data
+
+
+def test_api_dual_guide_presets():
+    presets = list_excision_presets()
+    assert "dmd_exon_51_skipping" in presets
+    assert "egfr_exon_19_deletion" in presets
+
