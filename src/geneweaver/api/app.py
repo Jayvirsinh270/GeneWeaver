@@ -40,6 +40,16 @@ from geneweaver.biology.dual_guide import (
     design_excision_junction_primers,
     CLINICAL_EXCISION_PRESETS
 )
+from geneweaver.biology.variant_analyzer import (
+    GenomicVariant,
+    VariantImpactReport,
+    PersonalizedAuditDossier,
+    parse_vcf_lines,
+    analyze_variant_crispr_impact,
+    compute_allele_specific_window,
+    audit_patient_variants,
+    get_clinvar_benchmark_variants,
+)
 from geneweaver.biology.gene_search import search_genes_and_diseases, extract_and_design_sgrnas_for_gene, GENE_DATABASE
 
 app = FastAPI(
@@ -128,6 +138,36 @@ class ExcisionPrimerRequest(BaseModel):
     cut_pos_b: int = Field(..., examples=[1580])
     upstream_flank_dna: Optional[str] = Field("GACGTACTGACGTACGTACTGACGTACTGACGTACGTACT")
     downstream_flank_dna: Optional[str] = Field("TGCATGCACTGCATGCACTGTGCATGCACTGCATGCACTG")
+
+
+class VariantAuditItem(BaseModel):
+    chrom: str = Field("chr11", examples=["chr11"])
+    pos: int = Field(..., examples=[5227002])
+    ref: str = Field(..., examples=["A"])
+    alt: str = Field(..., examples=["T"])
+    variant_id: str = Field(".", examples=["rs334"])
+    gene_symbol: str = Field("", examples=["HBB"])
+    clinical_significance: str = Field("Pathogenic", examples=["Pathogenic"])
+    heterozygous: bool = Field(True)
+
+
+class VariantAuditRequest(BaseModel):
+    guide_sequence: str = Field(..., description="Target guide spacer (20 nt)", examples=["CTAACAGGCAGACTTCTCCA"])
+    pam_motif: str = Field("AGG", description="PAM motif", examples=["AGG"])
+    variants: List[VariantAuditItem] = Field(..., description="List of patient genomic variants")
+    patient_id: str = Field("PATIENT-001", examples=["PATIENT-001"])
+    target_locus_start: int = Field(5226982, description="Target locus 1-indexed start position")
+
+
+class VcfParseRequest(BaseModel):
+    vcf_text: str = Field(..., description="VCF v4.2 formatted text with tab or space-delimited columns")
+
+
+class AlleleSelectivityRequest(BaseModel):
+    wildtype_seq: str = Field(..., examples=["GTCCTGCAGGCTCCACGGGT"])
+    mutant_seq: str = Field(..., examples=["GTCCTGCAGGTTCCACGGGT"])
+    snp_pos_in_window: int = Field(15, ge=1, le=20, examples=[15])
+    pam_motif: str = Field("NGG", examples=["NGG"])
 
 
 # ----------------- API ENDPOINTS -----------------
@@ -491,3 +531,100 @@ def design_junction_primers_endpoint(req: ExcisionPrimerRequest):
 @app.get("/api/v1/dual-guide/presets", summary="List Clinical Excision & Exon Skipping Benchmarks")
 def list_excision_presets():
     return CLINICAL_EXCISION_PRESETS
+
+
+@app.post("/api/v1/variants/audit", summary="Audit Patient Variants Against Target Guide for PAM/Seed Mutations")
+def audit_variants_endpoint(req: VariantAuditRequest):
+    try:
+        clean_g = validate_and_clean_guide(req.guide_sequence, expected_length=20)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    domain_variants = [
+        GenomicVariant(
+            chrom=v.chrom,
+            pos=v.pos,
+            ref=v.ref,
+            alt=v.alt,
+            variant_id=v.variant_id,
+            gene_symbol=v.gene_symbol,
+            clinical_significance=v.clinical_significance,
+            heterozygous=v.heterozygous
+        )
+        for v in req.variants
+    ]
+
+    dossier = audit_patient_variants(
+        guide_seq=clean_g,
+        pam_motif=req.pam_motif,
+        variants=domain_variants,
+        patient_id=req.patient_id,
+        target_locus_start=req.target_locus_start
+    )
+
+    return {
+        "patient_id": dossier.patient_id,
+        "guide_seq": dossier.guide_seq,
+        "pam_motif": dossier.pam_motif,
+        "num_variants_screened": dossier.num_variants_screened,
+        "therapy_viable_in_patient": dossier.therapy_viable_in_patient,
+        "risk_level": dossier.risk_level,
+        "key_findings": dossier.key_findings,
+        "impacted_variants": [
+            {
+                "variant_id": r.variant.variant_id,
+                "chrom": r.variant.chrom,
+                "pos": r.variant.pos,
+                "ref": r.variant.ref,
+                "alt": r.variant.alt,
+                "gene_symbol": r.variant.gene_symbol,
+                "consequence": r.consequence.value,
+                "ref_affinity_score": r.ref_affinity_score,
+                "alt_affinity_score": r.alt_affinity_score,
+                "allele_selectivity_ratio": r.allele_selectivity_ratio,
+                "is_pam_impacted": r.is_pam_impacted,
+                "is_seed_impacted": r.is_seed_impacted,
+                "position_in_guide": r.position_in_guide,
+                "description": r.description,
+                "recommendation": r.recommendation
+            }
+            for r in dossier.impacted_variants
+        ]
+    }
+
+
+@app.post("/api/v1/variants/parse-vcf", summary="Parse VCF Text into Structured Genomic Variants")
+def parse_vcf_endpoint(req: VcfParseRequest):
+    variants = parse_vcf_lines(req.vcf_text)
+    return {
+        "total_parsed": len(variants),
+        "variants": [
+            {
+                "chrom": v.chrom,
+                "pos": v.pos,
+                "variant_id": v.variant_id,
+                "ref": v.ref,
+                "alt": v.alt,
+                "gene_symbol": v.gene_symbol,
+                "clinical_significance": v.clinical_significance,
+                "heterozygous": v.heterozygous
+            }
+            for v in variants
+        ]
+    }
+
+
+@app.post("/api/v1/variants/allele-selectivity", summary="Calculate Allele-Specific Discriminatory Selectivity Ratio")
+def allele_selectivity_endpoint(req: AlleleSelectivityRequest):
+    res = compute_allele_specific_window(
+        wildtype_seq=req.wildtype_seq,
+        mutant_seq=req.mutant_seq,
+        snp_pos_in_window=req.snp_pos_in_window,
+        pam_motif=req.pam_motif
+    )
+    return res
+
+
+@app.get("/api/v1/variants/benchmarks", summary="Get Pre-loaded ClinVar / dbSNP Benchmark Variants")
+def get_benchmarks_endpoint():
+    return get_clinvar_benchmark_variants()

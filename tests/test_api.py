@@ -24,7 +24,15 @@ from geneweaver.api.app import (
     DeliverySimRequest,
     PrimerRequest,
     DualGuideExcisionRequest,
-    ExcisionPrimerRequest
+    ExcisionPrimerRequest,
+    VariantAuditRequest,
+    VariantAuditItem,
+    audit_variants_endpoint,
+    VcfParseRequest,
+    parse_vcf_endpoint,
+    AlleleSelectivityRequest,
+    allele_selectivity_endpoint,
+    get_benchmarks_endpoint
 )
 
 
@@ -161,4 +169,55 @@ def test_api_dual_guide_presets():
     presets = list_excision_presets()
     assert "dmd_exon_51_skipping" in presets
     assert "egfr_exon_19_deletion" in presets
+
+
+def test_api_variant_audit():
+    req = VariantAuditRequest(
+        guide_sequence="CTAACAGGCAGACTTCTCCA",
+        pam_motif="AGG",
+        variants=[
+            VariantAuditItem(
+                chrom="chr11",
+                pos=5227003,  # Within PAM
+                ref="G",
+                alt="A",
+                variant_id="rs_pam_destroy",
+                gene_symbol="HBB"
+            )
+        ],
+        patient_id="PT-001",
+        target_locus_start=5226982
+    )
+    res = audit_variants_endpoint(req)
+    assert res["patient_id"] == "PT-001"
+    assert res["num_variants_screened"] == 1
+    assert res["therapy_viable_in_patient"] is False
+    assert res["risk_level"] == "THERAPY_CONTRAINDICATED"
+    assert len(res["impacted_variants"]) == 1
+    assert res["impacted_variants"][0]["consequence"] == "PAM_DESTROYED"
+
+
+def test_api_vcf_parse():
+    vcf_text = "chr11\t5227002\trs334\tA\tT\t.\tPASS\tGENE=HBB\tGT\t0/1\n"
+    res = parse_vcf_endpoint(VcfParseRequest(vcf_text=vcf_text))
+    assert res["total_parsed"] == 1
+    assert res["variants"][0]["variant_id"] == "rs334"
+
+
+def test_api_allele_selectivity():
+    req = AlleleSelectivityRequest(
+        wildtype_seq="GTCCTGCAGGCTCCACGGGT",
+        mutant_seq="GTCCTGCAGGTTCCACGGGT",
+        snp_pos_in_window=15
+    )
+    res = allele_selectivity_endpoint(req)
+    assert res["allele_selectivity_ratio"] >= 10.0
+    assert res["is_clinically_selective"] is True
+
+
+def test_api_variant_benchmarks():
+    benchmarks = get_benchmarks_endpoint()
+    assert "HBB_rs334_SickleCell" in benchmarks
+    assert "BRAF_rs113488022_V600E" in benchmarks
+
 

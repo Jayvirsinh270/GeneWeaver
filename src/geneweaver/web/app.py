@@ -53,6 +53,17 @@ from geneweaver.biology.dual_guide import (
     VirtualGelLane,
     VirtualGelBand
 )
+from geneweaver.biology.variant_analyzer import (
+    GenomicVariant,
+    VariantImpactReport,
+    PersonalizedAuditDossier,
+    VariantConsequence,
+    parse_vcf_lines,
+    analyze_variant_crispr_impact,
+    compute_allele_specific_window,
+    audit_patient_variants,
+    get_clinvar_benchmark_variants,
+)
 from geneweaver.web.gel_visualizer import build_virtual_gel_plot
 from geneweaver.web.ideogram import build_karyotype_ideogram_plot
 from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
@@ -1222,9 +1233,10 @@ with tab3:
 
 # ----------------- TAB 4: AUTONOMOUS REPAIR, BASE & PRIME EDITING STUDIO -----------------
 with tab4:
-    studio_subtab1, studio_subtab2, studio_subtab3, studio_subtab4, studio_subtab5, studio_subtab6 = st.tabs([
+    studio_subtab1, studio_subtab2, studio_subtab3, studio_subtab4, studio_subtab5, studio_subtab6, studio_subtab7 = st.tabs([
         "✨ Autonomous Guide Auto-Repair Studio",
         "✂️ Dual-Guide Excision & Nickase (Virtual Gel)",
+        "🧬 Patient Variant & ClinVar SNP Analyzer",
         "🎯 Base Editing Window & Bystander Simulator",
         "🧬 Prime Editing pegRNA Architect",
         "🔬 In-Silico Live Mutation Scratchpad",
@@ -1440,8 +1452,162 @@ with tab4:
         else:
             st.warning("Please ensure both Guide A and Guide B spacers are exactly 20 nucleotides.")
 
-    # ---------------- SUBTAB 3: BASE EDITING (CBE / ABE) SIMULATOR ----------------
+    # ---------------- SUBTAB 3: PATIENT VARIANT & CLINVAR SNP ANALYZER ----------------
     with studio_subtab3:
+        st.subheader("🧬 Patient-Personalized Genomic Variant (ClinVar / dbSNP / VCF) Analyzer")
+        st.caption(
+            "Audit patient-specific single nucleotide polymorphisms (SNPs) and indels against CRISPR guides. "
+            "Detects PAM destruction (therapy loss), PAM creation (de-novo off-targets), seed mismatch penalties, "
+            "and calculates Allele-Specific Selectivity Ratios for dominant-negative disorders (e.g. Huntington's HTT, Sickle Cell HBB, BRAF V600E)."
+        )
+
+        # 1-Click Clinical Benchmarks
+        st.markdown("##### 📌 Clinical Benchmarks (ClinVar / dbSNP Pre-Loaded)")
+        bench_cols = st.columns(4)
+        clinvar_benchmarks = get_clinvar_benchmark_variants()
+
+        if "variant_preset" not in st.session_state:
+            st.session_state.variant_preset = "HBB_rs334_SickleCell"
+
+        preset_keys = list(clinvar_benchmarks.keys())
+        labels = [
+            "🩸 Sickle Cell (HBB)",
+            "🧠 Huntington's (HTT)",
+            "🔬 BRAF V600E (Melanoma)",
+            "🫁 EGFR T790M (NSCLC)"
+        ]
+
+        for b_idx, (b_key, b_lbl) in enumerate(zip(preset_keys, labels)):
+            with bench_cols[b_idx]:
+                if st.button(b_lbl, use_container_width=True, key=f"btn_var_bench_{b_key}"):
+                    st.session_state.variant_preset = b_key
+                    st.rerun()
+
+        active_bench = clinvar_benchmarks[st.session_state.variant_preset]
+        st.info(f"**Loaded Case Study:** {active_bench['name']} &mdash; *{active_bench['clinical_context']}*")
+
+        v_c1, v_c2, v_c3 = st.columns([1, 1, 1])
+        with v_c1:
+            guide_v = st.text_input("Candidate Guide Spacer (20 nt)", value=active_bench["guide_seq"], max_chars=20, key="var_guide_input").upper().strip()
+        with v_c2:
+            pam_v = st.text_input("PAM Motif (IUPAC)", value=active_bench["pam_motif"], max_chars=5, key="var_pam_input").upper().strip()
+        with v_c3:
+            loc_v = st.number_input("Target Locus Start Position", value=active_bench["target_locus_start"], step=1, key="var_loc_input")
+
+        # Patient Variants Section
+        st.markdown("##### 🧪 Patient Variant Inputs")
+        var_mode = st.radio("Variant Input Mode", ["Curated Patient Variant (Quick Audit)", "Upload / Paste VCF v4.2 Text"], horizontal=True, key="var_mode_radio")
+
+        parsed_variants = []
+        if var_mode == "Curated Patient Variant (Quick Audit)":
+            pv_c1, pv_c2, pv_c3, pv_c4, pv_c5 = st.columns([1, 1, 1, 1, 1])
+            with pv_c1:
+                v_chr = st.text_input("Chromosome", value=active_bench["chrom"], key="pv_chr")
+            with pv_c2:
+                v_pos = st.number_input("Variant Position", value=active_bench["pos"], step=1, key="pv_pos")
+            with pv_c3:
+                v_ref = st.text_input("Reference Allele (WT)", value=active_bench["ref"], max_chars=10, key="pv_ref").upper()
+            with pv_c4:
+                v_alt = st.text_input("Patient Allele (ALT)", value=active_bench["alt"], max_chars=10, key="pv_alt").upper()
+            with pv_c5:
+                v_rs = st.text_input("Variant ID / dbSNP", value=active_bench["name"].split()[-1].rstrip(")"), key="pv_id")
+
+            parsed_variants.append(GenomicVariant(
+                chrom=v_chr,
+                pos=int(v_pos),
+                ref=v_ref,
+                alt=v_alt,
+                variant_id=v_rs,
+                gene_symbol=active_bench["gene"],
+                clinical_significance=active_bench["clinical_significance"],
+                heterozygous=True
+            ))
+        else:
+            default_vcf = f"""##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tPATIENT\n{active_bench['chrom']}\t{active_bench['pos']}\t{active_bench['name'].split()[-1].rstrip(')')}\t{active_bench['ref']}\t{active_bench['alt']}\t100\tPASS\tGENE={active_bench['gene']};CLNSIG={active_bench['clinical_significance']}\tGT\t0/1\n"""
+            vcf_text = st.text_area("Paste VCF 4.2 Lines", value=default_vcf, height=120, key="vcf_paste_area")
+            parsed_variants = parse_vcf_lines(vcf_text)
+
+        if len(guide_v) == 20 and parsed_variants:
+            dossier = audit_patient_variants(
+                guide_seq=guide_v,
+                pam_motif=pam_v,
+                variants=parsed_variants,
+                patient_id="PATIENT-001",
+                target_locus_start=int(loc_v)
+            )
+
+            # Clinical Safety Status Banner
+            st.markdown("---")
+            if dossier.risk_level == "THERAPY_CONTRAINDICATED":
+                st.error("🚨 **CLINICAL ALERT: THERAPY CONTRAINDICATED IN THIS PATIENT** &mdash; PAM motif is destroyed by patient SNP! Cas9 cleavage is abolished (~0%).")
+            elif dossier.risk_level == "HIGH_RISK":
+                st.warning("⚠️ **SAFETY WARNING: DE-NOVO PATIENT OFF-TARGET** &mdash; Variant creates a novel PAM site not present in reference genome.")
+            elif dossier.risk_level == "CAUTION":
+                st.warning("⚠️ **EFFICACY CAUTION: SEED REGION MISMATCH** &mdash; Mutation in critical PAM-proximal seed window reduces on-target potency.")
+            else:
+                st.success("✅ **CLEARANCE APPROVED: THERAPY VIABLE** &mdash; No patient variants disrupt target protospacer or PAM site.")
+
+            # Metrics Row
+            m_v1, m_v2, m_v3, m_v4 = st.columns(4)
+            with m_v1:
+                st.metric("Variants Audited", f"{dossier.num_variants_screened}", delta=f"{len(dossier.impacted_variants)} Impacted")
+            with m_v2:
+                top_impact = dossier.impacted_variants[0] if dossier.impacted_variants else None
+                ref_aff = top_impact.ref_affinity_score if top_impact else 92.0
+                st.metric("Ref Allele Cut Rate", f"{ref_aff}%", delta="Standard Genome")
+            with m_v3:
+                alt_aff = top_impact.alt_affinity_score if top_impact else 92.0
+                st.metric("Patient Allele Cut Rate", f"{alt_aff}%", delta="Patient Genome", delta_color="normal" if alt_aff > 50 else "inverse")
+            with m_v4:
+                sel_ratio = top_impact.allele_selectivity_ratio if top_impact else 1.0
+                st.metric("Allele Selectivity", f"{sel_ratio}x", delta="Discriminatory Power" if sel_ratio >= 10 else "Non-selective")
+
+            # Comparative Bar Chart: Ref Allele vs Patient Allele
+            if top_impact:
+                fig_comp = go.Figure(data=[
+                    go.Bar(
+                        x=["Reference (WT) Allele", "Patient (ALT) Allele"],
+                        y=[top_impact.ref_affinity_score, top_impact.alt_affinity_score],
+                        marker_color=["#00F0FF", "#FF3366" if top_impact.alt_affinity_score < 10 else "#00E676"],
+                        text=[f"{top_impact.ref_affinity_score}%", f"{top_impact.alt_affinity_score}%"],
+                        textposition="auto"
+                    )
+                ])
+                fig_comp.update_layout(
+                    title="CRISPR Cleavage Affinity: Reference vs Patient Variant Allele",
+                    template="plotly_dark",
+                    paper_bgcolor="#0A0E17",
+                    plot_bgcolor="#161B22",
+                    height=280,
+                    yaxis=dict(title="Predicted Cleavage Affinity (%)", range=[0, 105])
+                )
+                st.plotly_chart(fig_comp, use_container_width=True)
+
+                # Variant Impact Breakdown Table
+                st.markdown("##### 📋 Variant Impact Breakdown")
+                v_rows = []
+                for imp in dossier.impacted_variants:
+                    v_rows.append({
+                        "Variant ID": imp.variant.variant_id,
+                        "Position": f"{imp.variant.chrom}:{imp.variant.pos}",
+                        "Alleles": f"{imp.variant.ref} &rarr; {imp.variant.alt}",
+                        "Consequence": imp.consequence.value,
+                        "Ref Cut %": f"{imp.ref_affinity_score}%",
+                        "Patient Cut %": f"{imp.alt_affinity_score}%",
+                        "Selectivity": f"{imp.allele_selectivity_ratio}x",
+                        "Recommendation": imp.recommendation
+                    })
+                st.table(pd.DataFrame(v_rows))
+
+            if dossier.key_findings:
+                st.markdown("##### 🔍 Key Clinical Findings")
+                for kf in dossier.key_findings:
+                    st.caption(f"• {kf}")
+        else:
+            st.info("Ensure the candidate guide spacer is 20 nucleotides and valid variants are provided.")
+
+    # ---------------- SUBTAB 4: BASE EDITING (CBE / ABE) SIMULATOR ----------------
+    with studio_subtab4:
         st.subheader("🎯 Precision Base Editing (CBE & ABE) & Bystander Mutation Simulator")
         st.caption(
             "Model Cytosine (C·G &rarr; T·A) and Adenine (A·T &rarr; G·C) deamination windows without double-stranded breaks. "
@@ -1541,8 +1707,8 @@ with tab4:
         else:
             st.warning("Enter a 20-nucleotide protospacer sequence to simulate base editing.")
 
-    # ---------------- SUBTAB 4: PRIME EDITING (pegRNA) ARCHITECT ----------------
-    with studio_subtab4:
+    # ---------------- SUBTAB 5: PRIME EDITING (pegRNA) ARCHITECT ----------------
+    with studio_subtab5:
         st.subheader("🧬 Prime Editing (pegRNA) Architect (Search-and-Replace Genome Editing)")
         st.caption(
             "Automate the design of prime editing guide RNAs (pegRNAs). Generates Reverse Transcription Template (RTT) "
@@ -1626,8 +1792,8 @@ with tab4:
         else:
             st.info("Enter a 20-nt spacer and desired edit sequence to synthesize the pegRNA.")
 
-    # ---------------- SUBTAB 5: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
-    with studio_subtab5:
+    # ---------------- SUBTAB 6: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
+    with studio_subtab6:
         st.subheader("🧬 In-Silico Live Mutation Scratchpad (Reactive DNA Synthesizer)")
         st.caption("Interactively edit individual nucleotides to preview on-target cleavage efficiency, GC stability, and binding thermodynamics in real-time:")
 
@@ -1685,8 +1851,8 @@ with tab4:
         else:
             st.info(f"Enter exactly 20 nucleotides to activate live biophysical telemetry ({len(scratch_seq)}/20 entered).")
 
-    # ---------------- SUBTAB 6: HEAD-TO-HEAD DUEL ----------------
-    with studio_subtab6:
+    # ---------------- SUBTAB 7: HEAD-TO-HEAD DUEL ----------------
+    with studio_subtab7:
         st.subheader("⚔️ Head-to-Head Multi-Guide Duel")
         st.caption("Compare two candidate sgRNAs side-by-side to select the optimal clinical lead:")
 
