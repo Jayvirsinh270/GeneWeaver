@@ -92,96 +92,326 @@ st.set_page_config(
 st.markdown("""
 <style>
     /* Google Fonts import */
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-    /* Luminous Slate Master Canvas with Subtle Radial Ambient Lighting */
+    :root {
+        --bg-canvas: #090D16;
+        --surface-glass: rgba(30, 41, 59, 0.45);
+        --surface-glass-hover: rgba(30, 41, 59, 0.65);
+        --surface-card: rgba(15, 23, 42, 0.65);
+        --surface-border: rgba(255, 255, 255, 0.08);
+        --surface-border-highlight: rgba(255, 255, 255, 0.16);
+        --primary-indigo: #6366F1;
+        --primary-indigo-hover: #4F46E5;
+        --accent-teal: #14B8A6;
+        --accent-mint: #10B981;
+        --accent-rose: #F43F5E;
+        --accent-amber: #F59E0B;
+        --text-primary: #F8FAFC;
+        --text-secondary: #94A3B8;
+        --text-muted: #64748B;
+        --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* Master Canvas with Subtle Layered Radial Lighting */
     .stApp {
-        background: radial-gradient(circle at 15% 15%, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.95) 50%, #090D16 100%) fixed;
-        color: #F1F5F9;
-        font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+        background: radial-gradient(circle at 10% 8%, rgba(99, 102, 241, 0.07) 0%, transparent 40%),
+                    radial-gradient(circle at 90% 12%, rgba(20, 184, 166, 0.05) 0%, transparent 35%),
+                    radial-gradient(circle at 50% 50%, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.95) 55%, #080C14 100%) fixed;
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        letter-spacing: -0.01em;
+    }
+
+    /* Hide standard Streamlit header rainbow decoration */
+    header[data-testid="stHeader"] {
+        background: rgba(9, 13, 22, 0.8) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border-bottom: 1px solid var(--surface-border) !important;
     }
     
-    /* Global Glassmorphic Card Containers */
+    /* Modern Glassmorphic Card Containers */
     .glass-card {
-        background: rgba(30, 41, 59, 0.55);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-top: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 14px;
-        padding: 20px;
-        margin-bottom: 16px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
-        transition: transform 0.2s ease, border-color 0.2s ease;
+        background: var(--surface-glass);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--surface-border);
+        border-top: 1px solid var(--surface-border-highlight);
+        border-radius: 16px;
+        padding: 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.35);
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
     }
     .glass-card:hover {
-        border-color: rgba(99, 102, 241, 0.3);
+        border-color: rgba(99, 102, 241, 0.35);
+        box-shadow: 0 14px 40px -5px rgba(0, 0, 0, 0.45);
+    }
+
+    /* Precision App Brand Header */
+    .brand-header-container {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--surface-border);
+        border-top: 1px solid var(--surface-border-highlight);
+        border-radius: 18px;
+        padding: 24px 28px;
+        margin-bottom: 22px;
+        box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.45);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .brand-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .brand-title-left {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .brand-logo-pill {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #4F46E5 0%, #6366F1 50%, #14B8A6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .brand-name {
+        font-size: 1.75rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: #FFFFFF;
+        margin: 0;
+        line-height: 1.2;
+    }
+    .brand-subtitle {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin: 2px 0 0 0;
+    }
+    .brand-status-pills {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 9999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+    .status-pill-green {
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #34D399;
+    }
+    .status-pill-indigo {
+        background: rgba(99, 102, 241, 0.12);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        color: #A5B4FC;
+    }
+    .status-pill-pulse {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #10B981;
+        box-shadow: 0 0 8px #10B981;
+        animation: pulse-dot 2s infinite ease-in-out;
+    }
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    /* Target Parameter HUD Capsule */
+    .hud-capsule-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding-top: 14px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .hud-chip {
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .hud-chip strong {
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+        font-weight: 600;
     }
     
     /* Metrics Card Styling - Sophisticated Soft Radiance */
     div[data-testid="stMetric"] {
-        background: rgba(30, 41, 59, 0.4);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        border-top: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 12px;
-        padding: 14px 18px;
-        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15);
+        background: var(--surface-glass) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1px solid var(--surface-border) !important;
+        border-top: 1px solid var(--surface-border-highlight) !important;
+        border-radius: 14px !important;
+        padding: 16px 20px !important;
+        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.2) !important;
+        transition: transform 0.2s ease, border-color 0.2s ease !important;
+    }
+    div[data-testid="stMetric"]:hover {
+        border-color: rgba(99, 102, 241, 0.35) !important;
+        transform: translateY(-1px) !important;
     }
     div[data-testid="stMetricValue"] {
-        font-family: 'JetBrains Mono', monospace;
-        color: #F8FAFC;
-        font-size: 1.75rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
+        font-family: var(--font-mono) !important;
+        color: var(--text-primary) !important;
+        font-size: 1.8rem !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.02em !important;
     }
     div[data-testid="stMetricLabel"] {
-        color: #94A3B8;
-        font-size: 0.82rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        color: var(--text-secondary) !important;
+        font-size: 0.82rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.06em !important;
     }
 
-    /* Tabs Styling - Clean Translucent Floating Pills */
+    /* Streamlit Button Overrides - Linear & Vercel Style */
+    .stButton > button {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%) !important;
+        color: #E2E8F0 !important;
+        border: 1px solid var(--surface-border) !important;
+        border-top: 1px solid var(--surface-border-highlight) !important;
+        border-radius: 10px !important;
+        padding: 0.6rem 1.2rem !important;
+        font-weight: 600 !important;
+        font-size: 0.88rem !important;
+        font-family: var(--font-sans) !important;
+        letter-spacing: -0.01em !important;
+        backdrop-filter: blur(12px) !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, rgba(49, 65, 96, 0.7) 0%, rgba(30, 41, 59, 0.9) 100%) !important;
+        border-color: rgba(99, 102, 241, 0.5) !important;
+        color: #FFFFFF !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.25) !important;
+    }
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        box-shadow: 0 4px 18px rgba(79, 70, 229, 0.45) !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #4338CA 0%, #4F46E5 100%) !important;
+        box-shadow: 0 6px 26px rgba(79, 70, 229, 0.65) !important;
+        transform: translateY(-1.5px) !important;
+    }
+
+    /* Streamlit Input Fields */
+    div[data-baseweb="input"] {
+        background: rgba(15, 23, 42, 0.65) !important;
+        border: 1px solid var(--surface-border) !important;
+        border-radius: 10px !important;
+        color: var(--text-primary) !important;
+        backdrop-filter: blur(12px) !important;
+        transition: all 0.2s ease !important;
+    }
+    div[data-baseweb="input"]:focus-within {
+        border-color: var(--primary-indigo) !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+    }
+    div[data-baseweb="select"] > div {
+        background: rgba(15, 23, 42, 0.65) !important;
+        border: 1px solid var(--surface-border) !important;
+        border-radius: 10px !important;
+        color: var(--text-primary) !important;
+    }
+    div[data-testid="stExpander"] {
+        background: rgba(30, 41, 59, 0.35) !important;
+        backdrop-filter: blur(14px) !important;
+        border: 1px solid var(--surface-border) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+        margin-bottom: 1.1rem !important;
+    }
+    div[data-testid="stExpander"] summary {
+        color: #E2E8F0 !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+    }
+
+    /* Tabs Styling - Clean Translucent Floating Segmented Pills */
     .stTabs [data-baseweb="tab-list"] {
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 12px;
-        padding: 4px;
-        gap: 4px;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--surface-border);
+        border-radius: 14px;
+        padding: 5px;
+        gap: 5px;
+        margin-bottom: 16px;
     }
     .stTabs [data-baseweb="tab"] {
-        color: #94A3B8;
-        border-radius: 8px;
+        color: var(--text-secondary);
+        border-radius: 9px;
         font-weight: 600;
         font-size: 0.88rem;
-        padding: 8px 16px;
-        transition: all 0.2s ease;
+        padding: 9px 18px;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        border: 1px solid transparent;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.04);
     }
     .stTabs [aria-selected="true"] {
-        background: rgba(99, 102, 241, 0.18) !important;
-        color: #818CF8 !important;
-        border: 1px solid rgba(129, 140, 248, 0.3) !important;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+        background: rgba(99, 102, 241, 0.16) !important;
+        color: #A5B4FC !important;
+        border: 1px solid rgba(129, 140, 248, 0.35) !important;
+        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.18);
     }
     
     /* Sequence Visualizer Badges - Elegant Glass Nucleotide Tiles */
     .seq-card {
-        background: rgba(15, 23, 42, 0.7);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
-        font-family: 'JetBrains Mono', monospace;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--surface-border);
+        border-radius: 14px;
+        padding: 18px 22px;
+        margin-bottom: 14px;
+        font-family: var(--font-mono);
+        box-shadow: 0 6px 28px rgba(0, 0, 0, 0.25);
     }
     .base-tile {
         display: inline-block;
-        padding: 5px 8px;
+        padding: 5px 9px;
         margin: 2px;
         border-radius: 6px;
         font-weight: 700;
@@ -197,7 +427,7 @@ st.markdown("""
         background: rgba(244, 63, 94, 0.22);
         color: #FDA4AF;
         border: 1px solid rgba(244, 63, 94, 0.45);
-        box-shadow: 0 2px 10px rgba(244, 63, 94, 0.2);
+        box-shadow: 0 2px 10px rgba(244, 63, 94, 0.25);
     }
     .pam-tile {
         background: rgba(99, 102, 241, 0.25);
@@ -205,16 +435,16 @@ st.markdown("""
         border: 1px solid rgba(129, 140, 248, 0.5);
         font-weight: 800;
     }
-    .arrow-indicator { color: #F59E0B; font-size: 1.05rem; }
+    .arrow-indicator { color: var(--accent-amber); font-size: 1.05rem; }
     
     /* Explainer Callout Card */
     .explainer-box {
-        background: rgba(30, 41, 59, 0.45);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 16px 20px;
-        margin-bottom: 16px;
+        background: var(--surface-glass);
+        backdrop-filter: blur(14px);
+        border: 1px solid var(--surface-border);
+        border-radius: 14px;
+        padding: 18px 22px;
+        margin-bottom: 18px;
     }
 
     /* Gene Badges */
@@ -229,6 +459,14 @@ st.markdown("""
     .badge-cancer { background: rgba(244, 63, 94, 0.16); border: 1px solid rgba(244, 63, 94, 0.35); color: #FDA4AF; }
     .badge-exon { background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(245, 158, 11, 0.35); color: #FCD34D; }
     .badge-safe { background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.35); color: #6EE7B7; }
+
+    /* Sidebar Refinements */
+    section[data-testid="stSidebar"] {
+        background: rgba(9, 13, 22, 0.94) !important;
+        backdrop-filter: blur(28px) !important;
+        -webkit-backdrop-filter: blur(28px) !important;
+        border-right: 1px solid var(--surface-border) !important;
+    }
 
     /* Custom Scrollbars */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -408,11 +646,11 @@ with st.sidebar:
     )
 
     if guide_len == req_len:
-        eff_color = "#00E676" if on_target_preview.score >= 70 else ("#FFB300" if on_target_preview.score >= 50 else "#FF1744")
+        eff_color = "#34D399" if on_target_preview.score >= 70 else ("#FBBF24" if on_target_preview.score >= 50 else "#F87171")
         st.markdown(
-            f"<div style='margin-top: 6px; padding: 6px 10px; background: #161B22; border: 1px solid #30363D; border-radius: 6px; font-size: 0.82rem;'>"
+            f"<div style='margin-top: 6px; padding: 7px 12px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; font-size: 0.82rem;'>"
             f"🎯 <strong>{'Cutting Strength' if is_simple else 'On-Target Efficiency (Doench \'16)'}:</strong> "
-            f"<span style='color:{eff_color}; font-weight:bold;'>{on_target_preview.score}/100 ({on_target_preview.tier})</span>"
+            f"<span style='color:{eff_color}; font-weight:700;'>{on_target_preview.score}/100 ({on_target_preview.tier})</span>"
             f"</div>",
             unsafe_allow_html=True
         )
@@ -673,14 +911,54 @@ if should_scan:
             st.session_state.scan_completed = True
             st.toast("Real alignment scan completed successfully!", icon="✅")
 
-# ----------------- MAIN VIEW & TABS -----------------
-main_title = "🧬 GeneWeaver | CRISPR DNA Safety & Efficiency Scanner" if is_simple else "🧬 GeneWeaver | GPU-Accelerated CRISPR Discovery Engine"
-st.title(main_title)
-
-st.markdown(
-    f"Active Treatment: **{st.session_state.selected_disease_name}** | "
-    f"Target Address: `{raw_guide}` | Safety Key: `{raw_pam[:3]}` | Max Typos: `{max_mismatches}`"
-)
+# ----------------- MAIN VIEW & EXECUTIVE APPS BRAND HEADER -----------------
+st.markdown(f"""
+<div class="brand-header-container">
+    <div class="brand-title-row">
+        <div class="brand-title-left">
+            <div class="brand-logo-pill">🧬</div>
+            <div>
+                <h1 class="brand-name">GeneWeaver <span style="font-weight: 300; opacity: 0.8; font-size: 1.15rem; color: #94A3B8;">&middot; Clinical CRISPR Suite</span></h1>
+                <p class="brand-subtitle">GPU-Accelerated Genome Alignment, Off-Target Hazard Prediction & Therapeutic Architecture</p>
+            </div>
+        </div>
+        <div class="brand-status-pills">
+            <span class="status-pill status-pill-green">
+                <span class="status-pill-pulse"></span>
+                CUDA JIT Online
+            </span>
+            <span class="status-pill status-pill-indigo">
+                v2.2 Enterprise
+            </span>
+            <span class="status-pill" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #CBD5E1;">
+                {'🌱 Beginner Mode' if is_simple else '🔬 Expert Mode'}
+            </span>
+        </div>
+    </div>
+    <div class="hud-capsule-row">
+        <div class="hud-chip">
+            <span>Target:</span>
+            <strong>{st.session_state.selected_disease_name}</strong>
+        </div>
+        <div class="hud-chip">
+            <span>Lead Spacer:</span>
+            <strong style="color: #A5B4FC; letter-spacing: 0.05em;">{raw_guide}</strong>
+        </div>
+        <div class="hud-chip">
+            <span>PAM Lock:</span>
+            <strong style="color: #6EE7B7;">{raw_pam[:3]}</strong>
+        </div>
+        <div class="hud-chip">
+            <span>Nuclease:</span>
+            <strong>{curr_nuc.name}</strong>
+        </div>
+        <div class="hud-chip">
+            <span>Hamming Distance:</span>
+            <strong>&le; {max_mismatches} bp</strong>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # 💡 CRISPR 101 Explainer Card (Available in both modes)
 with st.expander("💡 **What is CRISPR? Click for a 30-second simple guide**", expanded=False):
@@ -834,9 +1112,9 @@ with tab1:
         if len(df) == 0:
             st.success("🎉 **Zero Off-Target Mutations Detected!** The specified guide RNA appears 100% specific with no tolerated mismatches in this genomic region.")
             st.markdown(f"""
-            <div style="background: #161B22; border: 1px solid #00E676; border-radius: 10px; padding: 20px; margin-top: 12px;">
-                <h4 style="color: #00E676; margin-bottom: 6px;">🛡️ Clinical Specificity Rating: 100% | On-Target Efficiency: {m['on_target_score']}%</h4>
-                <p style="color: #8B949E; margin-bottom: 0;">
+            <div class="glass-card" style="border-left: 4px solid #10B981; padding: 22px; margin-top: 14px;">
+                <h4 style="color: #6EE7B7; margin-bottom: 6px;">🛡️ Clinical Specificity Rating: 100% | On-Target Efficiency: {m['on_target_score']}%</h4>
+                <p style="color: #94A3B8; margin-bottom: 0;">
                     Scanned <strong>{m['total_bp']:,} bp</strong> of genomic sequence.
                     No off-target binding sites were detected with &le; {max_mismatches} mismatches and canonical PAM.
                     This indicates minimal risk of off-target double-stranded breaks in this sequence.
@@ -892,15 +1170,15 @@ with tab1:
                         hole=0.55,
                         color="Risk Category",
                         color_discrete_map={
-                            "🚨 High Danger (Likely to cut)": "#FF1744",
-                            "🟡 Warning (Might cut)": "#FFB300",
-                            "🟢 Safe (Unlikely to cut)": "#00F0FF",
-                            "🟢 Safe (Too many typos to cut)": "#00E676"
+                            "🚨 High Danger (Likely to cut)": "#F43F5E",
+                            "🟡 Warning (Might cut)": "#F59E0B",
+                            "🟢 Safe (Unlikely to cut)": "#6366F1",
+                            "🟢 Safe (Too many typos to cut)": "#10B981"
                         },
                         template="plotly_dark",
                         height=350
                     )
-                    fig_simple_pie.update_layout(paper_bgcolor="#0A0E17", plot_bgcolor="#161B22")
+                    fig_simple_pie.update_layout(paper_bgcolor="rgba(15, 23, 42, 0.6)", plot_bgcolor="rgba(30, 41, 59, 0.25)")
                     st.plotly_chart(fig_simple_pie, use_container_width=True)
 
                 with col_s2:
@@ -946,17 +1224,17 @@ with tab1:
                         y="Hsu_Score",
                         color="Risk_Tier",
                         color_discrete_map={
-                            "HIGH_RISK": "#FF1744",
-                            "MODERATE_RISK": "#FFB300",
-                            "LOW_RISK": "#00F0FF",
-                            "BENIGN": "#8B949E"
+                            "HIGH_RISK": "#F43F5E",
+                            "MODERATE_RISK": "#F59E0B",
+                            "LOW_RISK": "#6366F1",
+                            "BENIGN": "#64748B"
                         },
                         hover_data=["Chromosome", "Position", "Gene_Symbol", "Genomic_Feature", "Mismatches", "Hsu_Score", "CFD_Score"],
                         labels={"Hsu_Score": "Hsu-Zhang Cleavage Probability", "Position": "Genomic Coordinate (bp)"},
                         template="plotly_dark",
                         height=380
                     )
-                    fig_manhattan.update_layout(paper_bgcolor="#0A0E17", plot_bgcolor="#161B22")
+                    fig_manhattan.update_layout(paper_bgcolor="rgba(15, 23, 42, 0.6)", plot_bgcolor="rgba(30, 41, 59, 0.25)")
                     st.plotly_chart(fig_manhattan, use_container_width=True)
 
                 with chart_col2:
@@ -968,11 +1246,11 @@ with tab1:
                         values="Count",
                         names="Genomic_Feature",
                         hole=0.55,
-                        color_discrete_sequence=["#FF1744", "#FFB300", "#00F0FF", "#00E676"],
+                        color_discrete_sequence=["#F43F5E", "#F59E0B", "#6366F1", "#10B981"],
                         template="plotly_dark",
                         height=380
                     )
-                    fig_feat.update_layout(paper_bgcolor="#0A0E17", plot_bgcolor="#161B22")
+                    fig_feat.update_layout(paper_bgcolor="rgba(15, 23, 42, 0.6)", plot_bgcolor="rgba(30, 41, 59, 0.25)")
                     st.plotly_chart(fig_feat, use_container_width=True)
 
                 # On-Target Cleavage & Clinical Quality Dossier Card
@@ -1058,18 +1336,41 @@ with tab1:
                     st.caption("⚠️ " + " | ".join(nuc_warn[:2]))
     else:
         st.markdown(f"""
-        <div style="background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 28px; margin-top: 10px; text-align: center;">
-            <h2 style="color: #00F0FF; margin-bottom: 8px;">🚀 Ready to Align & Score CRISPR Target</h2>
-            <p style="color: #8B949E; font-size: 1.05rem; max-width: 680px; margin: 0 auto 16px auto;">
-                Currently configured for <strong>{st.session_state.selected_disease_name}</strong> (<code style="color: #00E676;">{raw_guide}</code>).
-                Scan genome-scale sequences with GPU acceleration, PAM filtering, MIT Hsu-Zhang + Broad CFD cleavage scoring, and Doench '16 on-target efficiency.
+        <div class="glass-card" style="padding: 36px 32px; text-align: center; border-color: rgba(99, 102, 241, 0.25);">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(20, 184, 166, 0.2)); border: 1px solid rgba(255, 255, 255, 0.15); margin-bottom: 16px; font-size: 2rem;">
+                ⚡
+            </div>
+            <h2 style="color: #FFFFFF; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px;">
+                Ready to Execute Whole-Genome Alignment Scan
+            </h2>
+            <p style="color: #94A3B8; font-size: 1rem; max-width: 640px; margin: 0 auto 24px auto; line-height: 1.6;">
+                Currently targeted to <strong style="color: #F8FAFC;">{st.session_state.selected_disease_name}</strong> with lead spacer <code style="color: #A5B4FC; background: rgba(99, 102, 241, 0.12); padding: 3px 8px; border-radius: 6px; font-weight: 600;">{raw_guide}</code>.
+                Evaluates whole genomes using JIT-compiled CUDA SIMD mismatch evaluation, MIT Hsu-Zhang, Broad CFD, and Doench '16 on-target efficiency.
             </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; max-width: 900px; margin: 0 auto 24px auto; text-align: left;">
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-weight: 700; color: #F8FAFC; margin-bottom: 4px; font-size: 0.92rem;">🚀 Sub-3-Minute Scan</div>
+                    <div style="color: #94A3B8; font-size: 0.82rem;">2-bit binary genomic compression with GPU streaming.</div>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-weight: 700; color: #F8FAFC; margin-bottom: 4px; font-size: 0.92rem;">🎛️ Epigenetic Tuning</div>
+                    <div style="color: #94A3B8; font-size: 0.82rem;">CRISPRa / CRISPRi gene volume control without DNA breaks.</div>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-weight: 700; color: #F8FAFC; margin-bottom: 4px; font-size: 0.92rem;">✂️ Dual-Guide Excision</div>
+                    <div style="color: #94A3B8; font-size: 0.82rem;">Simulate exon skipping & virtual agarose gel electrophoresis.</div>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 14px 16px;">
+                    <div style="font-weight: 700; color: #F8FAFC; margin-bottom: 4px; font-size: 0.92rem;">🧬 Patient Variant Audit</div>
+                    <div style="color: #94A3B8; font-size: 0.82rem;">Detect PAM destruction and de-novo off-targets in VCFs.</div>
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
         col_c1, col_c2, col_c3 = st.columns([1, 2, 1])
         with col_c2:
             st.write("")
-            if st.button("🚀 Run Real Alignment Scan Now", type="primary", use_container_width=True, key="main_run_btn"):
+            if st.button("🚀 Execute Whole-Genome Alignment Scan Now", type="primary", use_container_width=True, key="main_run_btn"):
                 st.session_state.trigger_scan = True
                 st.rerun()
 
@@ -1081,11 +1382,11 @@ with tab2:
         
         # Color Legend Box
         st.markdown("""
-        <div style="background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-            <strong>Color Guide:</strong> &nbsp;
-            <span class='base-tile match-tile'>A</span> <strong>Cyan = Match</strong> (Scissors recognize this letter) &nbsp;|&nbsp;
-            <span class='base-tile mismatch-tile'>G</span> <strong>Red = Spelling Mistake</strong> (Acts as a brake) &nbsp;|&nbsp;
-            <span class='base-tile pam-tile'>AGG</span> <strong>Green = Safety Lock (PAM)</strong>
+        <div class="glass-card" style="padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <strong style="color: #94A3B8; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Nucleotide Key:</strong>
+            <span style="display: flex; align-items: center; gap: 6px;"><span class='base-tile match-tile'>A</span> <strong style="color: #2DD4BF;">Match</strong> (Target Alignment)</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span class='base-tile mismatch-tile'>G</span> <strong style="color: #FDA4AF;">Mismatch</strong> (Binding Penalty)</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span class='base-tile pam-tile'>AGG</span> <strong style="color: #C7D2FE;">PAM Lock</strong></span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1662,7 +1963,7 @@ with tab4:
                     go.Bar(
                         x=["Reference (WT) Allele", "Patient (ALT) Allele"],
                         y=[top_impact.ref_affinity_score, top_impact.alt_affinity_score],
-                        marker_color=["#00F0FF", "#FF3366" if top_impact.alt_affinity_score < 10 else "#00E676"],
+                        marker_color=["#6366F1", "#F43F5E" if top_impact.alt_affinity_score < 10 else "#10B981"],
                         text=[f"{top_impact.ref_affinity_score}%", f"{top_impact.alt_affinity_score}%"],
                         textposition="auto"
                     )
@@ -1670,8 +1971,8 @@ with tab4:
                 fig_comp.update_layout(
                     title="CRISPR Cleavage Affinity: Reference vs Patient Variant Allele",
                     template="plotly_dark",
-                    paper_bgcolor="#0A0E17",
-                    plot_bgcolor="#161B22",
+                    paper_bgcolor="rgba(15, 23, 42, 0.6)",
+                    plot_bgcolor="rgba(30, 41, 59, 0.25)",
                     height=280,
                     yaxis=dict(title="Predicted Cleavage Affinity (%)", range=[0, 105])
                 )
@@ -2125,13 +2426,13 @@ with tab4:
             tiles_html = ""
             for idx, char in enumerate(scratch_seq):
                 pos = idx + 1
-                tile_color = "#00F0FF" if pos >= 11 else "#8B949E"  # Seed vs Distal
-                border_color = "#00E676" if pos == 20 else ("#FF1744" if pos in [1, 2] and char == 'T' else "#30363D")
-                tiles_html += f"<span style='display:inline-block; margin:2px; padding:6px 10px; background:#161B22; border:1px solid {border_color}; border-radius:6px; font-family:monospace; font-weight:bold; font-size:1.1rem; color:{tile_color}; text-align:center;'>{char}<br/><sub style='font-size:0.65rem; color:#6E7681;'>{pos}</sub></span>"
-            tiles_html += f" &nbsp; <span style='display:inline-block; margin:2px; padding:6px 12px; background:#00E676; border-radius:6px; font-family:monospace; font-weight:900; font-size:1.1rem; color:#0A0E17;'>{raw_pam[:3]}<br/><sub style='font-size:0.65rem; color:#0A0E17;'>PAM</sub></span>"
+                tile_color = "#A5B4FC" if pos >= 11 else "#94A3B8"  # Seed vs Distal
+                border_color = "#10B981" if pos == 20 else ("#F43F5E" if pos in [1, 2] and char == 'T' else "rgba(255, 255, 255, 0.08)")
+                tiles_html += f"<span style='display:inline-block; margin:2px; padding:6px 10px; background:rgba(15, 23, 42, 0.75); border:1px solid {border_color}; border-radius:8px; font-family:monospace; font-weight:700; font-size:1.05rem; color:{tile_color}; text-align:center;'>{char}<br/><sub style='font-size:0.65rem; color:#64748B;'>{pos}</sub></span>"
+            tiles_html += f" &nbsp; <span style='display:inline-block; margin:2px; padding:6px 12px; background:rgba(99, 102, 241, 0.25); border:1px solid rgba(129, 140, 248, 0.5); border-radius:8px; font-family:monospace; font-weight:800; font-size:1.05rem; color:#C7D2FE;'>{raw_pam[:3]}<br/><sub style='font-size:0.65rem; color:#A5B4FC;'>PAM</sub></span>"
 
-            st.markdown(f"<div style='margin: 16px 0; padding: 12px; background: #0D1117; border: 1px solid #30363D; border-radius: 8px;'>{tiles_html}</div>", unsafe_allow_html=True)
-            st.caption("Cyan letters (11–20): High-intolerance Seed Region &middot; Grey letters (1–10): Distal Tolerance Region &middot; Green: PAM lock")
+            st.markdown(f"<div class='glass-card' style='margin: 16px 0; padding: 16px 20px;'>{tiles_html}</div>", unsafe_allow_html=True)
+            st.caption("Indigo letters (11–20): High-intolerance Seed Core &middot; Slate letters (1–10): Distal Tolerance &middot; Purple: PAM lock")
 
             # Instant Live Reactive Meters
             m1, m2, m3, m4 = st.columns(4)
@@ -2198,10 +2499,10 @@ with tab4:
                 "Guide B": [ot_b.score, ot_b.gc_content_pct, ot_b.melting_temp_c]
             })
             fig_duel = go.Figure(data=[
-                go.Bar(name='Guide A', x=duel_df['Metric'], y=duel_df['Guide A'], marker_color='#00F0FF'),
-                go.Bar(name='Guide B', x=duel_df['Metric'], y=duel_df['Guide B'], marker_color='#FFB300')
+                go.Bar(name='Guide A', x=duel_df['Metric'], y=duel_df['Guide A'], marker_color='#6366F1'),
+                go.Bar(name='Guide B', x=duel_df['Metric'], y=duel_df['Guide B'], marker_color='#F59E0B')
             ])
-            fig_duel.update_layout(barmode='group', template='plotly_dark', paper_bgcolor="#0A0E17", plot_bgcolor="#161B22", height=320)
+            fig_duel.update_layout(barmode='group', template='plotly_dark', paper_bgcolor="rgba(15, 23, 42, 0.6)", plot_bgcolor="rgba(30, 41, 59, 0.25)", height=320)
             st.plotly_chart(fig_duel, use_container_width=True)
 
             # Winner Recommendation
