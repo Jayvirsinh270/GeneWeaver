@@ -112,12 +112,12 @@ if "active_nuclease" not in st.session_state:
 ref_mgr = ReferenceManager()
 hw_monitor = HardwareMonitor(device_ids=[0, 1])
 
+is_light = (st.session_state.theme_mode == "light")
+
 # Plotly theme tokens adapted to current Light / Dark appearance
 plot_template = "plotly_white" if is_light else "plotly_dark"
 plot_paper = "rgba(255, 255, 255, 0.95)" if is_light else "rgba(15, 23, 42, 0.6)"
 plot_bg = "#F8FAFC" if is_light else "rgba(30, 41, 59, 0.25)"
-
-is_light = (st.session_state.theme_mode == "light")
 
 # Dynamic Theme Tokens
 if is_light:
