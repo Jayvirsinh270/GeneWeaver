@@ -80,7 +80,7 @@ from geneweaver.web.structure_viewer import generate_3dmol_html
 import streamlit.components.v1 as components
 from geneweaver.tui.telemetry import HardwareMonitor
 
-# ----------------- PAGE CONFIGURATION & THEME -----------------
+# ----------------- PAGE CONFIGURATION & SESSION STATE -----------------
 st.set_page_config(
     page_title="GeneWeaver | CRISPR Safety & Efficiency Engine",
     page_icon="🧬",
@@ -88,395 +88,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom Cyber-Bio CSS Styling
-st.markdown("""
-<style>
-    /* Google Fonts import */
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "light"  # Default to clean Light Mode
 
-    :root {
-        --bg-canvas: #090D16;
-        --surface-glass: rgba(30, 41, 59, 0.45);
-        --surface-glass-hover: rgba(30, 41, 59, 0.65);
-        --surface-card: rgba(15, 23, 42, 0.65);
-        --surface-border: rgba(255, 255, 255, 0.08);
-        --surface-border-highlight: rgba(255, 255, 255, 0.16);
-        --primary-indigo: #6366F1;
-        --primary-indigo-hover: #4F46E5;
-        --accent-teal: #14B8A6;
-        --accent-mint: #10B981;
-        --accent-rose: #F43F5E;
-        --accent-amber: #F59E0B;
-        --text-primary: #F8FAFC;
-        --text-secondary: #94A3B8;
-        --text-muted: #64748B;
-        --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-    }
-
-    /* Master Canvas with Subtle Layered Radial Lighting */
-    .stApp {
-        background: radial-gradient(circle at 10% 8%, rgba(99, 102, 241, 0.07) 0%, transparent 40%),
-                    radial-gradient(circle at 90% 12%, rgba(20, 184, 166, 0.05) 0%, transparent 35%),
-                    radial-gradient(circle at 50% 50%, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.95) 55%, #080C14 100%) fixed;
-        color: var(--text-primary);
-        font-family: var(--font-sans);
-        letter-spacing: -0.01em;
-    }
-
-    /* Hide standard Streamlit header rainbow decoration */
-    header[data-testid="stHeader"] {
-        background: rgba(9, 13, 22, 0.8) !important;
-        backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
-        border-bottom: 1px solid var(--surface-border) !important;
-    }
-    
-    /* Modern Glassmorphic Card Containers */
-    .glass-card {
-        background: var(--surface-glass);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid var(--surface-border);
-        border-top: 1px solid var(--surface-border-highlight);
-        border-radius: 16px;
-        padding: 22px;
-        margin-bottom: 18px;
-        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.35);
-        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-    .glass-card:hover {
-        border-color: rgba(99, 102, 241, 0.35);
-        box-shadow: 0 14px 40px -5px rgba(0, 0, 0, 0.45);
-    }
-
-    /* Precision App Brand Header */
-    .brand-header-container {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
-        border: 1px solid var(--surface-border);
-        border-top: 1px solid var(--surface-border-highlight);
-        border-radius: 18px;
-        padding: 24px 28px;
-        margin-bottom: 22px;
-        box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.45);
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-    .brand-title-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 12px;
-    }
-    .brand-title-left {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-    .brand-logo-pill {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #4F46E5 0%, #6366F1 50%, #14B8A6 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.4rem;
-        box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .brand-name {
-        font-size: 1.75rem;
-        font-weight: 800;
-        letter-spacing: -0.03em;
-        color: #FFFFFF;
-        margin: 0;
-        line-height: 1.2;
-    }
-    .brand-subtitle {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        font-weight: 500;
-        margin: 2px 0 0 0;
-    }
-    .brand-status-pills {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 12px;
-        border-radius: 9999px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-    }
-    .status-pill-green {
-        background: rgba(16, 185, 129, 0.12);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        color: #34D399;
-    }
-    .status-pill-indigo {
-        background: rgba(99, 102, 241, 0.12);
-        border: 1px solid rgba(99, 102, 241, 0.3);
-        color: #A5B4FC;
-    }
-    .status-pill-pulse {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #10B981;
-        box-shadow: 0 0 8px #10B981;
-        animation: pulse-dot 2s infinite ease-in-out;
-    }
-    @keyframes pulse-dot {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(0.85); }
-    }
-
-    /* Target Parameter HUD Capsule */
-    .hud-capsule-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        padding-top: 14px;
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-    }
-    .hud-chip {
-        background: rgba(15, 23, 42, 0.75);
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 8px;
-        padding: 6px 12px;
-        font-size: 0.82rem;
-        color: var(--text-secondary);
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .hud-chip strong {
-        color: var(--text-primary);
-        font-family: var(--font-mono);
-        font-weight: 600;
-    }
-    
-    /* Metrics Card Styling - Sophisticated Soft Radiance */
-    div[data-testid="stMetric"] {
-        background: var(--surface-glass) !important;
-        backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
-        border: 1px solid var(--surface-border) !important;
-        border-top: 1px solid var(--surface-border-highlight) !important;
-        border-radius: 14px !important;
-        padding: 16px 20px !important;
-        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.2) !important;
-        transition: transform 0.2s ease, border-color 0.2s ease !important;
-    }
-    div[data-testid="stMetric"]:hover {
-        border-color: rgba(99, 102, 241, 0.35) !important;
-        transform: translateY(-1px) !important;
-    }
-    div[data-testid="stMetricValue"] {
-        font-family: var(--font-mono) !important;
-        color: var(--text-primary) !important;
-        font-size: 1.8rem !important;
-        font-weight: 700 !important;
-        letter-spacing: -0.02em !important;
-    }
-    div[data-testid="stMetricLabel"] {
-        color: var(--text-secondary) !important;
-        font-size: 0.82rem !important;
-        font-weight: 600 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.06em !important;
-    }
-
-    /* Streamlit Button Overrides - Linear & Vercel Style */
-    .stButton > button {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%) !important;
-        color: #E2E8F0 !important;
-        border: 1px solid var(--surface-border) !important;
-        border-top: 1px solid var(--surface-border-highlight) !important;
-        border-radius: 10px !important;
-        padding: 0.6rem 1.2rem !important;
-        font-weight: 600 !important;
-        font-size: 0.88rem !important;
-        font-family: var(--font-sans) !important;
-        letter-spacing: -0.01em !important;
-        backdrop-filter: blur(12px) !important;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    }
-    .stButton > button:hover {
-        background: linear-gradient(135deg, rgba(49, 65, 96, 0.7) 0%, rgba(30, 41, 59, 0.9) 100%) !important;
-        border-color: rgba(99, 102, 241, 0.5) !important;
-        color: #FFFFFF !important;
-        transform: translateY(-1px) !important;
-        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.25) !important;
-    }
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
-        color: #FFFFFF !important;
-        border: 1px solid rgba(255, 255, 255, 0.25) !important;
-        box-shadow: 0 4px 18px rgba(79, 70, 229, 0.45) !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #4338CA 0%, #4F46E5 100%) !important;
-        box-shadow: 0 6px 26px rgba(79, 70, 229, 0.65) !important;
-        transform: translateY(-1.5px) !important;
-    }
-
-    /* Streamlit Input Fields */
-    div[data-baseweb="input"] {
-        background: rgba(15, 23, 42, 0.65) !important;
-        border: 1px solid var(--surface-border) !important;
-        border-radius: 10px !important;
-        color: var(--text-primary) !important;
-        backdrop-filter: blur(12px) !important;
-        transition: all 0.2s ease !important;
-    }
-    div[data-baseweb="input"]:focus-within {
-        border-color: var(--primary-indigo) !important;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
-    }
-    div[data-baseweb="select"] > div {
-        background: rgba(15, 23, 42, 0.65) !important;
-        border: 1px solid var(--surface-border) !important;
-        border-radius: 10px !important;
-        color: var(--text-primary) !important;
-    }
-    div[data-testid="stExpander"] {
-        background: rgba(30, 41, 59, 0.35) !important;
-        backdrop-filter: blur(14px) !important;
-        border: 1px solid var(--surface-border) !important;
-        border-radius: 14px !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-        margin-bottom: 1.1rem !important;
-    }
-    div[data-testid="stExpander"] summary {
-        color: #E2E8F0 !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-    }
-
-    /* Tabs Styling - Clean Translucent Floating Segmented Pills */
-    .stTabs [data-baseweb="tab-list"] {
-        background: rgba(15, 23, 42, 0.75);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid var(--surface-border);
-        border-radius: 14px;
-        padding: 5px;
-        gap: 5px;
-        margin-bottom: 16px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        color: var(--text-secondary);
-        border-radius: 9px;
-        font-weight: 600;
-        font-size: 0.88rem;
-        padding: 9px 18px;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        border: 1px solid transparent;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        color: var(--text-primary);
-        background: rgba(255, 255, 255, 0.04);
-    }
-    .stTabs [aria-selected="true"] {
-        background: rgba(99, 102, 241, 0.16) !important;
-        color: #A5B4FC !important;
-        border: 1px solid rgba(129, 140, 248, 0.35) !important;
-        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.18);
-    }
-    
-    /* Sequence Visualizer Badges - Elegant Glass Nucleotide Tiles */
-    .seq-card {
-        background: rgba(15, 23, 42, 0.75);
-        backdrop-filter: blur(16px);
-        border: 1px solid var(--surface-border);
-        border-radius: 14px;
-        padding: 18px 22px;
-        margin-bottom: 14px;
-        font-family: var(--font-mono);
-        box-shadow: 0 6px 28px rgba(0, 0, 0, 0.25);
-    }
-    .base-tile {
-        display: inline-block;
-        padding: 5px 9px;
-        margin: 2px;
-        border-radius: 6px;
-        font-weight: 700;
-        font-size: 1.05rem;
-        transition: all 0.15s ease;
-    }
-    .match-tile {
-        background: rgba(20, 184, 166, 0.16);
-        color: #2DD4BF;
-        border: 1px solid rgba(45, 212, 191, 0.35);
-    }
-    .mismatch-tile {
-        background: rgba(244, 63, 94, 0.22);
-        color: #FDA4AF;
-        border: 1px solid rgba(244, 63, 94, 0.45);
-        box-shadow: 0 2px 10px rgba(244, 63, 94, 0.25);
-    }
-    .pam-tile {
-        background: rgba(99, 102, 241, 0.25);
-        color: #C7D2FE;
-        border: 1px solid rgba(129, 140, 248, 0.5);
-        font-weight: 800;
-    }
-    .arrow-indicator { color: var(--accent-amber); font-size: 1.05rem; }
-    
-    /* Explainer Callout Card */
-    .explainer-box {
-        background: var(--surface-glass);
-        backdrop-filter: blur(14px);
-        border: 1px solid var(--surface-border);
-        border-radius: 14px;
-        padding: 18px 22px;
-        margin-bottom: 18px;
-    }
-
-    /* Gene Badges */
-    .gene-badge {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-    }
-    .badge-cancer { background: rgba(244, 63, 94, 0.16); border: 1px solid rgba(244, 63, 94, 0.35); color: #FDA4AF; }
-    .badge-exon { background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(245, 158, 11, 0.35); color: #FCD34D; }
-    .badge-safe { background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.35); color: #6EE7B7; }
-
-    /* Sidebar Refinements */
-    section[data-testid="stSidebar"] {
-        background: rgba(9, 13, 22, 0.94) !important;
-        backdrop-filter: blur(28px) !important;
-        -webkit-backdrop-filter: blur(28px) !important;
-        border-right: 1px solid var(--surface-border) !important;
-    }
-
-    /* Custom Scrollbars */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
-</style>
-""", unsafe_allow_html=True)
-
-# ----------------- SESSION STATE -----------------
 if "scan_completed" not in st.session_state:
     st.session_state.scan_completed = False
     st.session_state.df_hits = None
@@ -498,11 +112,503 @@ if "active_nuclease" not in st.session_state:
 ref_mgr = ReferenceManager()
 hw_monitor = HardwareMonitor(device_ids=[0, 1])
 
+# Plotly theme tokens adapted to current Light / Dark appearance
+plot_template = "plotly_white" if is_light else "plotly_dark"
+plot_paper = "rgba(255, 255, 255, 0.95)" if is_light else "rgba(15, 23, 42, 0.6)"
+plot_bg = "#F8FAFC" if is_light else "rgba(30, 41, 59, 0.25)"
+
+is_light = (st.session_state.theme_mode == "light")
+
+# Dynamic Theme Tokens
+if is_light:
+    theme_tokens = """
+    :root {
+        --bg-canvas: #F8FAFC;
+        --surface-glass: rgba(255, 255, 255, 0.9);
+        --surface-glass-hover: rgba(255, 255, 255, 0.98);
+        --surface-card: #FFFFFF;
+        --surface-border: rgba(226, 232, 240, 0.9);
+        --surface-border-highlight: rgba(255, 255, 255, 1);
+        --primary-indigo: #4F46E5;
+        --primary-indigo-hover: #4338CA;
+        --accent-teal: #0D9488;
+        --accent-mint: #059669;
+        --accent-rose: #E11D48;
+        --accent-amber: #D97706;
+        --text-primary: #0F172A;
+        --text-secondary: #475569;
+        --text-muted: #94A3B8;
+        --tab-list-bg: #E2E8F0;
+        --tab-inactive-color: #64748B;
+        --tab-active-bg: #FFFFFF;
+        --tab-active-border: rgba(203, 213, 225, 0.95);
+        --tab-active-color: #0F172A;
+        --tab-active-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        --input-bg: #FFFFFF;
+        --input-border: #CBD5E1;
+        --input-color: #0F172A;
+        --sidebar-bg: #F8FAFC;
+        --sidebar-border: #E2E8F0;
+        --metric-bg: #FFFFFF;
+        --metric-val-color: #0F172A;
+        --chip-bg: #F1F5F9;
+        --chip-border: #E2E8F0;
+        --brand-header-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.9) 100%);
+    }
+    .stApp {
+        background: radial-gradient(circle at 10% 8%, rgba(79, 70, 229, 0.04) 0%, transparent 40%),
+                    radial-gradient(circle at 90% 12%, rgba(13, 148, 136, 0.03) 0%, transparent 35%),
+                    #F1F5F9 fixed !important;
+        color: var(--text-primary) !important;
+    }
+    header[data-testid="stHeader"] {
+        background: rgba(248, 250, 252, 0.85) !important;
+        border-bottom: 1px solid var(--surface-border) !important;
+    }
+    .brand-name { color: #0F172A !important; }
+    .brand-subtitle { color: #475569 !important; }
+    .hud-chip { background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; color: #475569 !important; }
+    .hud-chip strong { color: #0F172A !important; }
+    .seq-card { background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; box-shadow: 0 4px 16px rgba(0,0,0,0.04) !important; }
+    .base-tile.match-tile { background: rgba(13, 148, 136, 0.12) !important; color: #0D9488 !important; border: 1px solid rgba(13, 148, 136, 0.35) !important; }
+    .base-tile.mismatch-tile { background: rgba(225, 29, 72, 0.12) !important; color: #E11D48 !important; border: 1px solid rgba(225, 29, 72, 0.35) !important; box-shadow: none !important; }
+    .base-tile.pam-tile { background: rgba(79, 70, 229, 0.12) !important; color: #4F46E5 !important; border: 1px solid rgba(79, 70, 229, 0.35) !important; }
+    .explainer-box { background: rgba(255, 255, 255, 0.9) !important; border: 1px solid #E2E8F0 !important; }
+    """
+else:
+    theme_tokens = """
+    :root {
+        --bg-canvas: #0F172A;
+        --surface-glass: rgba(30, 41, 59, 0.65);
+        --surface-glass-hover: rgba(30, 41, 59, 0.85);
+        --surface-card: rgba(15, 23, 42, 0.75);
+        --surface-border: rgba(148, 163, 184, 0.14);
+        --surface-border-highlight: rgba(255, 255, 255, 0.12);
+        --primary-indigo: #6366F1;
+        --primary-indigo-hover: #4F46E5;
+        --accent-teal: #14B8A6;
+        --accent-mint: #10B981;
+        --accent-rose: #F43F5E;
+        --accent-amber: #F59E0B;
+        --text-primary: #F8FAFC;
+        --text-secondary: #94A3B8;
+        --text-muted: #64748B;
+        --tab-list-bg: rgba(15, 23, 42, 0.7);
+        --tab-inactive-color: #94A3B8;
+        --tab-active-bg: rgba(99, 102, 241, 0.16);
+        --tab-active-border: rgba(129, 140, 248, 0.35);
+        --tab-active-color: #C7D2FE;
+        --tab-active-shadow: 0 4px 14px rgba(99, 102, 241, 0.15);
+        --input-bg: rgba(15, 23, 42, 0.7);
+        --input-border: rgba(148, 163, 184, 0.18);
+        --input-color: #F8FAFC;
+        --sidebar-bg: rgba(15, 23, 42, 0.95);
+        --sidebar-border: rgba(255, 255, 255, 0.08);
+        --metric-bg: rgba(30, 41, 59, 0.5);
+        --metric-val-color: #F8FAFC;
+        --chip-bg: rgba(15, 23, 42, 0.75);
+        --chip-border: rgba(255, 255, 255, 0.08);
+        --brand-header-bg: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+    }
+    .stApp {
+        background: radial-gradient(circle at 10% 8%, rgba(99, 102, 241, 0.07) 0%, transparent 40%),
+                    radial-gradient(circle at 90% 12%, rgba(20, 184, 166, 0.05) 0%, transparent 35%),
+                    radial-gradient(circle at 50% 50%, rgba(30, 41, 59, 0.35) 0%, rgba(15, 23, 42, 0.95) 55%, #0B111E 100%) fixed !important;
+        color: var(--text-primary) !important;
+    }
+    header[data-testid="stHeader"] {
+        background: rgba(11, 17, 30, 0.85) !important;
+        border-bottom: 1px solid var(--surface-border) !important;
+    }
+    .brand-name { color: #FFFFFF !important; }
+    .brand-subtitle { color: #94A3B8 !important; }
+    .hud-chip { background: rgba(15, 23, 42, 0.75) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; color: #94A3B8 !important; }
+    .hud-chip strong { color: #F8FAFC !important; }
+    .seq-card { background: rgba(15, 23, 42, 0.75) !important; border: 1px solid var(--surface-border) !important; }
+    .base-tile.match-tile { background: rgba(20, 184, 166, 0.16) !important; color: #2DD4BF !important; border: 1px solid rgba(45, 212, 191, 0.35) !important; }
+    .base-tile.mismatch-tile { background: rgba(244, 63, 94, 0.22) !important; color: #FDA4AF !important; border: 1px solid rgba(244, 63, 94, 0.45) !important; box-shadow: none !important; }
+    .base-tile.pam-tile { background: rgba(99, 102, 241, 0.25) !important; color: #C7D2FE !important; border: 1px solid rgba(129, 140, 248, 0.5) !important; }
+    .explainer-box { background: var(--surface-glass) !important; border: 1px solid var(--surface-border) !important; }
+    """
+
+st.markdown(f"""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+    :root {{
+        --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }}
+
+    {theme_tokens}
+
+    .stApp {{
+        font-family: var(--font-sans) !important;
+        letter-spacing: -0.01em;
+    }}
+
+    /* Global Soft Glassmorphic Card Containers */
+    .glass-card {{
+        background: var(--surface-glass);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--surface-border);
+        border-top: 1px solid var(--surface-border-highlight);
+        border-radius: 16px !important;
+        padding: 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }}
+    .glass-card:hover {{
+        border-color: rgba(99, 102, 241, 0.3);
+    }}
+
+    /* Precision App Brand Header */
+    .brand-header-container {{
+        background: var(--brand-header-bg);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--surface-border);
+        border-top: 1px solid var(--surface-border-highlight);
+        border-radius: 18px !important;
+        padding: 24px 28px;
+        margin-bottom: 22px;
+        box-shadow: 0 8px 30px -6px rgba(0, 0, 0, 0.12);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }}
+    .brand-title-row {{
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+    }}
+    .brand-title-left {{
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }}
+    .brand-logo-pill {{
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #4F46E5 0%, #6366F1 50%, #14B8A6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }}
+    .brand-name {{
+        font-size: 1.75rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin: 0;
+        line-height: 1.2;
+    }}
+    .brand-subtitle {{
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin: 2px 0 0 0;
+    }}
+    .brand-status-pills {{
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }}
+    .status-pill {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 9999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }}
+    .status-pill-green {{
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #059669;
+    }}
+    .status-pill-indigo {{
+        background: rgba(99, 102, 241, 0.12);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        color: #4F46E5;
+    }}
+    .status-pill-pulse {{
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #10B981;
+    }}
+
+    /* Target Parameter HUD Capsule */
+    .hud-capsule-row {{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding-top: 14px;
+        border-top: 1px solid var(--surface-border);
+    }}
+    .hud-chip {{
+        border-radius: 10px !important;
+        padding: 6px 12px;
+        font-size: 0.82rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }}
+
+    /* =========================================================================
+       CRITICAL: ELIMINATE STREAMLIT NATIVE RED UNDERLINE & SHARP TAB FOCUS BOX
+       ========================================================================= */
+    div[data-baseweb="tab-highlight"],
+    div[data-baseweb="tab-border"],
+    div[data-testid="stTabs"] div[data-baseweb="tab-highlight"],
+    div[data-testid="stTabs"] div[data-baseweb="tab-border"],
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    div[data-testid="stTabs"] [data-baseweb="tab-border"],
+    div[data-testid="stTabs"] hr {{
+        display: none !important;
+        height: 0px !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        border: none !important;
+        background: transparent !important;
+    }}
+    
+    div[data-baseweb="tab-list"],
+    div[data-testid="stTabs"] div[data-baseweb="tab-list"] {{
+        background: var(--tab-list-bg) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1px solid var(--surface-border) !important;
+        border-bottom: 1px solid var(--surface-border) !important;
+        border-radius: 14px !important;
+        padding: 5px !important;
+        gap: 6px !important;
+        margin-bottom: 18px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    }}
+
+    /* Soft pill tabs with NO sharp corners */
+    button[data-baseweb="tab"],
+    .stTabs [data-baseweb="tab"],
+    .stTabs button,
+    div[data-testid="stTabs"] button {{
+        outline: none !important;
+        outline-width: 0 !important;
+        border: 1px solid transparent !important;
+        border-radius: 10px !important;
+        color: var(--tab-inactive-color) !important;
+        font-family: var(--font-sans) !important;
+        font-weight: 600 !important;
+        font-size: 0.88rem !important;
+        padding: 8px 18px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }}
+    
+    button[data-baseweb="tab"]:hover,
+    .stTabs [data-baseweb="tab"]:hover {{
+        color: var(--text-primary) !important;
+        background: rgba(148, 163, 184, 0.12) !important;
+        border-radius: 10px !important;
+    }}
+
+    button[data-baseweb="tab"]:focus,
+    button[data-baseweb="tab"]:focus-visible,
+    button[data-baseweb="tab"]:active,
+    .stTabs [data-baseweb="tab"]:focus,
+    .stTabs [data-baseweb="tab"]:focus-visible,
+    .stTabs button:focus,
+    .stTabs button:focus-visible {{
+        outline: none !important;
+        outline-width: 0 !important;
+        border: 1px solid transparent !important;
+        box-shadow: none !important;
+    }}
+
+    button[data-baseweb="tab"][aria-selected="true"],
+    .stTabs [aria-selected="true"],
+    .stTabs button[aria-selected="true"],
+    div[data-testid="stTabs"] button[aria-selected="true"] {{
+        outline: none !important;
+        outline-width: 0 !important;
+        border: 1px solid var(--tab-active-border) !important;
+        border-radius: 10px !important;
+        background: var(--tab-active-bg) !important;
+        color: var(--tab-active-color) !important;
+        box-shadow: var(--tab-active-shadow) !important;
+    }}
+
+    /* Metrics with soft rounded edges */
+    div[data-testid="stMetric"] {{
+        background: var(--metric-bg) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1px solid var(--surface-border) !important;
+        border-radius: 14px !important;
+        padding: 16px 20px !important;
+        box-shadow: 0 2px 10px 0 rgba(0, 0, 0, 0.05) !important;
+    }}
+    div[data-testid="stMetricValue"] {{
+        font-family: var(--font-mono) !important;
+        color: var(--metric-val-color) !important;
+        font-size: 1.75rem !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.02em !important;
+    }}
+    div[data-testid="stMetricLabel"] {{
+        color: var(--text-secondary) !important;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }}
+
+    /* Soft rounded buttons */
+    .stButton > button {{
+        background: linear-gradient(135deg, var(--surface-glass) 0%, var(--surface-card) 100%) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--surface-border) !important;
+        border-radius: 12px !important;
+        padding: 0.6rem 1.25rem !important;
+        font-weight: 600 !important;
+        font-size: 0.88rem !important;
+        font-family: var(--font-sans) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }}
+    .stButton > button:hover {{
+        border-color: var(--primary-indigo) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.15) !important;
+    }}
+    .stButton > button[kind="primary"] {{
+        background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3) !important;
+    }}
+    .stButton > button[kind="primary"]:hover {{
+        background: linear-gradient(135deg, #4338CA 0%, #4F46E5 100%) !important;
+        box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45) !important;
+    }}
+
+    /* Soft rounded inputs */
+    div[data-baseweb="input"] {{
+        background: var(--input-bg) !important;
+        border: 1px solid var(--input-border) !important;
+        border-radius: 12px !important;
+        color: var(--input-color) !important;
+    }}
+    div[data-baseweb="input"]:focus-within {{
+        border-color: var(--primary-indigo) !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18) !important;
+    }}
+    div[data-baseweb="select"] > div {{
+        background: var(--input-bg) !important;
+        border: 1px solid var(--input-border) !important;
+        border-radius: 12px !important;
+        color: var(--input-color) !important;
+    }}
+    div[data-testid="stExpander"] {{
+        background: var(--surface-glass) !important;
+        border: 1px solid var(--surface-border) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+    }}
+    div[data-testid="stRadio"] > div {{
+        border-radius: 12px !important;
+        gap: 6px !important;
+    }}
+
+    /* Sequence Visualizer Badges */
+    .seq-card {{
+        border-radius: 14px !important;
+        padding: 18px 22px;
+        margin-bottom: 14px;
+        font-family: var(--font-mono);
+    }}
+    .base-tile {{
+        display: inline-block;
+        padding: 5px 9px;
+        margin: 2px;
+        border-radius: 8px !important;
+        font-weight: 700;
+        font-size: 1.05rem;
+    }}
+    .arrow-indicator {{ color: var(--accent-amber); font-size: 1.05rem; }}
+
+    /* Explainer Callout Card */
+    .explainer-box {{
+        border-radius: 14px !important;
+        padding: 18px 22px;
+        margin-bottom: 18px;
+    }}
+
+    /* Gene Badges */
+    .gene-badge {{
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 8px !important;
+        font-size: 0.82rem;
+        font-weight: 600;
+    }}
+    .badge-cancer {{ background: rgba(244, 63, 94, 0.12); border: 1px solid rgba(244, 63, 94, 0.3); color: #E11D48; }}
+    .badge-exon {{ background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); color: #D97706; }}
+    .badge-safe {{ background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #059669; }}
+
+    /* Sidebar Refinements */
+    section[data-testid="stSidebar"] {{
+        background: var(--sidebar-bg) !important;
+        border-right: 1px solid var(--sidebar-border) !important;
+    }}
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+    ::-webkit-scrollbar-track {{ background: transparent; }}
+    ::-webkit-scrollbar-thumb {{ background: rgba(148, 163, 184, 0.3); border-radius: 6px; }}
+</style>
+""", unsafe_allow_html=True)
+
+ref_mgr = ReferenceManager()
+hw_monitor = HardwareMonitor(device_ids=[0, 1])
+
+# Plotly theme tokens adapted to current Light / Dark appearance
+plot_template = "plotly_white" if is_light else "plotly_dark"
+plot_paper = "rgba(255, 255, 255, 0.95)" if is_light else "rgba(15, 23, 42, 0.6)"
+plot_bg = "#F8FAFC" if is_light else "rgba(30, 41, 59, 0.25)"
+
 # ----------------- SIDEBAR: INPUTS & PRESETS -----------------
 with st.sidebar:
     st.title("🧬 GeneWeaver")
     st.caption("GPU-Accelerated CRISPR Safety & Efficiency Engine")
 
+    # Light / Dark Theme Switcher
+    st.markdown("### 🎨 Appearance Theme")
+    theme_choice = st.radio(
+        "Display Mode",
+        ["☀️ Clean Studio (Light)", "🌙 Soft Slate (Dark)"],
+        index=0 if is_light else 1,
+        horizontal=True,
+        key="app_theme_radio"
+    )
+    new_theme = "light" if "Light" in theme_choice else "dark"
+    if new_theme != st.session_state.theme_mode:
+        st.session_state.theme_mode = new_theme
+        st.rerun()
+
+    st.markdown("---")
     st.markdown("### 🧭 Dashboard Mode")
     ui_mode = st.radio(
         "Choose Experience Level:",
@@ -1175,10 +1281,10 @@ with tab1:
                             "🟢 Safe (Unlikely to cut)": "#6366F1",
                             "🟢 Safe (Too many typos to cut)": "#10B981"
                         },
-                        template="plotly_dark",
+                        template=plot_template,
                         height=350
                     )
-                    fig_simple_pie.update_layout(paper_bgcolor="rgba(15, 23, 42, 0.6)", plot_bgcolor="rgba(30, 41, 59, 0.25)")
+                    fig_simple_pie.update_layout(paper_bgcolor=plot_paper, plot_bgcolor=plot_bg)
                     st.plotly_chart(fig_simple_pie, use_container_width=True)
 
                 with col_s2:
@@ -1231,10 +1337,10 @@ with tab1:
                         },
                         hover_data=["Chromosome", "Position", "Gene_Symbol", "Genomic_Feature", "Mismatches", "Hsu_Score", "CFD_Score"],
                         labels={"Hsu_Score": "Hsu-Zhang Cleavage Probability", "Position": "Genomic Coordinate (bp)"},
-                        template="plotly_dark",
+                        template=plot_template,
                         height=380
                     )
-                    fig_manhattan.update_layout(paper_bgcolor="rgba(15, 23, 42, 0.6)", plot_bgcolor="rgba(30, 41, 59, 0.25)")
+                    fig_manhattan.update_layout(paper_bgcolor=plot_paper, plot_bgcolor=plot_bg)
                     st.plotly_chart(fig_manhattan, use_container_width=True)
 
                 with chart_col2:
@@ -1247,10 +1353,10 @@ with tab1:
                         names="Genomic_Feature",
                         hole=0.55,
                         color_discrete_sequence=["#F43F5E", "#F59E0B", "#6366F1", "#10B981"],
-                        template="plotly_dark",
+                        template=plot_template,
                         height=380
                     )
-                    fig_feat.update_layout(paper_bgcolor="rgba(15, 23, 42, 0.6)", plot_bgcolor="rgba(30, 41, 59, 0.25)")
+                    fig_feat.update_layout(paper_bgcolor=plot_paper, plot_bgcolor=plot_bg)
                     st.plotly_chart(fig_feat, use_container_width=True)
 
                 # On-Target Cleavage & Clinical Quality Dossier Card
@@ -1970,9 +2076,9 @@ with tab4:
                 ])
                 fig_comp.update_layout(
                     title="CRISPR Cleavage Affinity: Reference vs Patient Variant Allele",
-                    template="plotly_dark",
-                    paper_bgcolor="rgba(15, 23, 42, 0.6)",
-                    plot_bgcolor="rgba(30, 41, 59, 0.25)",
+                    template=plot_template,
+                    paper_bgcolor=plot_paper,
+                    plot_bgcolor=plot_bg,
                     height=280,
                     yaxis=dict(title="Predicted Cleavage Affinity (%)", range=[0, 105])
                 )
@@ -2166,13 +2272,13 @@ with tab4:
             ))
 
             fig_epi.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(15, 23, 42, 0.6)",
-                plot_bgcolor="rgba(30, 41, 59, 0.3)",
+                template=plot_template,
+                paper_bgcolor=plot_paper,
+                plot_bgcolor=plot_bg,
                 height=340,
                 margin=dict(l=40, r=40, t=30, b=40),
-                xaxis=dict(title="Distance from Transcription Start Site (TSS) [bp]", gridcolor="rgba(255, 255, 255, 0.05)"),
-                yaxis=dict(title="Predicted Fold Change (vs. WT)", gridcolor="rgba(255, 255, 255, 0.05)")
+                xaxis=dict(title="Distance from Transcription Start Site (TSS) [bp]", gridcolor="rgba(148, 163, 184, 0.15)"),
+                yaxis=dict(title="Predicted Fold Change (vs. WT)", gridcolor="rgba(148, 163, 184, 0.15)")
             )
             st.plotly_chart(fig_epi, use_container_width=True)
 
@@ -2502,7 +2608,7 @@ with tab4:
                 go.Bar(name='Guide A', x=duel_df['Metric'], y=duel_df['Guide A'], marker_color='#6366F1'),
                 go.Bar(name='Guide B', x=duel_df['Metric'], y=duel_df['Guide B'], marker_color='#F59E0B')
             ])
-            fig_duel.update_layout(barmode='group', template='plotly_dark', paper_bgcolor="rgba(15, 23, 42, 0.6)", plot_bgcolor="rgba(30, 41, 59, 0.25)", height=320)
+            fig_duel.update_layout(barmode='group', template=plot_template, paper_bgcolor=plot_paper, plot_bgcolor=plot_bg, height=320)
             st.plotly_chart(fig_duel, use_container_width=True)
 
             # Winner Recommendation
