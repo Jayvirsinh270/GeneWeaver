@@ -32,7 +32,12 @@ from geneweaver.api.app import (
     parse_vcf_endpoint,
     AlleleSelectivityRequest,
     allele_selectivity_endpoint,
-    get_benchmarks_endpoint
+    get_benchmarks_endpoint,
+    EpigeneticModulationRequest,
+    modulate_epigenetic_endpoint,
+    list_epigenetic_effectors,
+    list_epigenetic_presets,
+    get_promoter_curve
 )
 
 
@@ -219,5 +224,40 @@ def test_api_variant_benchmarks():
     benchmarks = get_benchmarks_endpoint()
     assert "HBB_rs334_SickleCell" in benchmarks
     assert "BRAF_rs113488022_V600E" in benchmarks
+
+
+def test_api_epigenetic_modulate():
+    req = EpigeneticModulationRequest(
+        gene_symbol="HBG1",
+        guide_sequence="GGTCAACTTTCCTCTCACAC",
+        distance_to_tss_bp=-115,
+        effector_key="dcas9_vpr",
+        guide_efficiency_score=85.0
+    )
+    res = modulate_epigenetic_endpoint(req)
+    assert res["gene_symbol"] == "HBG1"
+    assert res["modality"] == "CRISPRa"
+    assert res["predicted_fold_change"] > 10.0
+    assert res["is_in_optimal_window"] is True
+
+
+def test_api_epigenetic_effectors():
+    effs = list_epigenetic_effectors()
+    assert "dcas9_vpr" in effs
+    assert "dcas9_krab_mecp2" in effs
+    assert effs["dcas9_vpr"]["modality"] == "CRISPRa"
+
+
+def test_api_epigenetic_presets():
+    presets = list_epigenetic_presets()
+    assert "HBG1_Activation_SickleCell" in presets
+    assert "MYC_Silencing_Oncology" in presets
+
+
+def test_api_promoter_curve():
+    pts = get_promoter_curve(gene_symbol="HBG1", effector_key="dcas9_vpr", step_bp=50)
+    assert len(pts) > 10
+    assert pts[0]["distance_from_tss_bp"] == -600
+
 
 

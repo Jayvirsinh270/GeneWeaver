@@ -64,6 +64,15 @@ from geneweaver.biology.variant_analyzer import (
     audit_patient_variants,
     get_clinvar_benchmark_variants,
 )
+from geneweaver.biology.epigenetic import (
+    ModulationModality,
+    EffectorDomain,
+    EffectorProfile,
+    EFFECTOR_PROFILES,
+    simulate_epigenetic_modulation,
+    generate_promoter_window_profile,
+    get_clinical_epigenetic_presets
+)
 from geneweaver.web.gel_visualizer import build_virtual_gel_plot
 from geneweaver.web.ideogram import build_karyotype_ideogram_plot
 from geneweaver.web.pdf_report import generate_clinical_pdf_dossier
@@ -82,66 +91,150 @@ st.set_page_config(
 # Custom Cyber-Bio CSS Styling
 st.markdown("""
 <style>
-    /* Dark Master Background */
+    /* Google Fonts import */
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+    /* Luminous Slate Master Canvas with Subtle Radial Ambient Lighting */
     .stApp {
-        background-color: #0A0E17;
-        color: #F0F6FC;
-        font-family: 'Inter', -apple-system, sans-serif;
+        background: radial-gradient(circle at 15% 15%, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.95) 50%, #090D16 100%) fixed;
+        color: #F1F5F9;
+        font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
     }
     
-    /* Metrics Card Styling */
+    /* Global Glassmorphic Card Containers */
+    .glass-card {
+        background: rgba(30, 41, 59, 0.55);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-top: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .glass-card:hover {
+        border-color: rgba(99, 102, 241, 0.3);
+    }
+    
+    /* Metrics Card Styling - Sophisticated Soft Radiance */
+    div[data-testid="stMetric"] {
+        background: rgba(30, 41, 59, 0.4);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 12px;
+        padding: 14px 18px;
+        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15);
+    }
     div[data-testid="stMetricValue"] {
         font-family: 'JetBrains Mono', monospace;
-        color: #00F0FF;
-        font-size: 1.8rem;
+        color: #F8FAFC;
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
     }
     div[data-testid="stMetricLabel"] {
-        color: #8B949E;
-        font-size: 0.9rem;
+        color: #94A3B8;
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Tabs Styling - Clean Translucent Floating Pills */
+    .stTabs [data-baseweb="tab-list"] {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 4px;
+        gap: 4px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        color: #94A3B8;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.88rem;
+        padding: 8px 16px;
+        transition: all 0.2s ease;
+    }
+    .stTabs [aria-selected="true"] {
+        background: rgba(99, 102, 241, 0.18) !important;
+        color: #818CF8 !important;
+        border: 1px solid rgba(129, 140, 248, 0.3) !important;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
     }
     
-    /* Sequence Visualizer Badges */
+    /* Sequence Visualizer Badges - Elegant Glass Nucleotide Tiles */
     .seq-card {
-        background: #161B22;
-        border: 1px solid #30363D;
-        border-radius: 8px;
-        padding: 16px;
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 16px 20px;
         margin-bottom: 12px;
         font-family: 'JetBrains Mono', monospace;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
     }
     .base-tile {
         display: inline-block;
-        padding: 4px 7px;
-        margin: 1px;
-        border-radius: 4px;
+        padding: 5px 8px;
+        margin: 2px;
+        border-radius: 6px;
         font-weight: 700;
         font-size: 1.05rem;
+        transition: all 0.15s ease;
     }
-    .match-tile { background: #0D2238; color: #00F0FF; border: 1px solid #00F0FF; }
-    .mismatch-tile { background: #FF1744; color: #FFFFFF; font-weight: 900; box-shadow: 0 0 8px rgba(255, 23, 68, 0.6); }
-    .pam-tile { background: #00E676; color: #0A0E17; font-weight: 900; }
-    .arrow-indicator { color: #FFB300; font-size: 1.1rem; }
+    .match-tile {
+        background: rgba(20, 184, 166, 0.16);
+        color: #2DD4BF;
+        border: 1px solid rgba(45, 212, 191, 0.35);
+    }
+    .mismatch-tile {
+        background: rgba(244, 63, 94, 0.22);
+        color: #FDA4AF;
+        border: 1px solid rgba(244, 63, 94, 0.45);
+        box-shadow: 0 2px 10px rgba(244, 63, 94, 0.2);
+    }
+    .pam-tile {
+        background: rgba(99, 102, 241, 0.25);
+        color: #C7D2FE;
+        border: 1px solid rgba(129, 140, 248, 0.5);
+        font-weight: 800;
+    }
+    .arrow-indicator { color: #F59E0B; font-size: 1.05rem; }
     
     /* Explainer Callout Card */
     .explainer-box {
-        background: #161B22;
-        border: 1px solid #30363D;
-        border-radius: 10px;
-        padding: 14px 18px;
+        background: rgba(30, 41, 59, 0.45);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 16px 20px;
         margin-bottom: 16px;
     }
 
-    /* Gene Badge */
+    /* Gene Badges */
     .gene-badge {
         display: inline-block;
-        padding: 3px 8px;
-        border-radius: 5px;
-        font-size: 0.85rem;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.82rem;
         font-weight: 600;
+        letter-spacing: 0.02em;
     }
-    .badge-cancer { background: rgba(255, 23, 68, 0.2); border: 1px solid #FF1744; color: #FF5252; }
-    .badge-exon { background: rgba(255, 179, 0, 0.2); border: 1px solid #FFB300; color: #FFD54F; }
-    .badge-safe { background: rgba(0, 230, 118, 0.2); border: 1px solid #00E676; color: #69F0AE; }
+    .badge-cancer { background: rgba(244, 63, 94, 0.16); border: 1px solid rgba(244, 63, 94, 0.35); color: #FDA4AF; }
+    .badge-exon { background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(245, 158, 11, 0.35); color: #FCD34D; }
+    .badge-safe { background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.35); color: #6EE7B7; }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1233,10 +1326,11 @@ with tab3:
 
 # ----------------- TAB 4: AUTONOMOUS REPAIR, BASE & PRIME EDITING STUDIO -----------------
 with tab4:
-    studio_subtab1, studio_subtab2, studio_subtab3, studio_subtab4, studio_subtab5, studio_subtab6, studio_subtab7 = st.tabs([
+    studio_subtab1, studio_subtab2, studio_subtab3, studio_subtab4, studio_subtab5, studio_subtab6, studio_subtab7, studio_subtab8 = st.tabs([
         "✨ Autonomous Guide Auto-Repair Studio",
         "✂️ Dual-Guide Excision & Nickase (Virtual Gel)",
         "🧬 Patient Variant & ClinVar SNP Analyzer",
+        "🎛️ Epigenetic CRISPRa / CRISPRi Modulation",
         "🎯 Base Editing Window & Bystander Simulator",
         "🧬 Prime Editing pegRNA Architect",
         "🔬 In-Silico Live Mutation Scratchpad",
@@ -1606,8 +1700,215 @@ with tab4:
         else:
             st.info("Ensure the candidate guide spacer is 20 nucleotides and valid variants are provided.")
 
-    # ---------------- SUBTAB 4: BASE EDITING (CBE / ABE) SIMULATOR ----------------
+    # ---------------- SUBTAB 4: EPIGENETIC TRANSCRIPTIONAL MODULATION (CRISPRa & CRISPRi) ----------------
     with studio_subtab4:
+        st.subheader("🎛️ Epigenetic Transcriptional Modulation Studio (CRISPRa & CRISPRi)")
+        st.caption(
+            "Precision gene activation (dCas9-VPR, SunTag, SAM) or epigenetic silencing (dCas9-KRAB, KRAB-MeCP2) "
+            "without creating double-stranded DNA breaks. Models promoter distance attenuation windows relative to the "
+            "Transcription Start Site (TSS) and calculates predicted log2 fold changes and residual expression."
+        )
+
+        # 1-Click Clinical Benchmarks
+        st.markdown("##### 📌 Clinical Benchmarks (Epigenetic Activation & Silencing)")
+        epi_presets = get_clinical_epigenetic_presets()
+        ep_cols = st.columns(4)
+
+        if "epigenetic_preset" not in st.session_state:
+            st.session_state.epigenetic_preset = "HBG1_Activation_SickleCell"
+
+        preset_items = list(epi_presets.items())
+        labels = [
+            "🩸 HBG1 Reactivation (Sickle Cell)",
+            "🔬 MYC Oncogene Silencing",
+            "🛡️ FOXP3 Treg Activation",
+            "🛑 KRAS Driver Repression"
+        ]
+
+        for p_idx, (p_key, p_val) in enumerate(preset_items):
+            with ep_cols[p_idx]:
+                if st.button(labels[p_idx], use_container_width=True, key=f"btn_epi_{p_key}"):
+                    st.session_state.epigenetic_preset = p_key
+                    st.rerun()
+
+        active_epi = epi_presets[st.session_state.epigenetic_preset]
+        st.markdown(f"""
+        <div class="glass-card" style="padding: 14px 18px; margin-bottom: 16px;">
+            <span class="gene-badge badge-safe">{active_epi['modality']} Mode</span> &nbsp;
+            <strong>{active_epi['name']}</strong> &mdash; 
+            <span style="color: #94A3B8; font-size: 0.9rem;">{active_epi['clinical_mechanism']}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        ep_c1, ep_c2, ep_c3, ep_c4 = st.columns([1, 1, 1, 1])
+        with ep_c1:
+            epi_gene = st.text_input("Target Gene Symbol", value=active_epi["gene"], max_chars=12, key="epi_gene_in").upper().strip()
+        with ep_c2:
+            epi_guide = st.text_input("Candidate Spacer (20 nt)", value=active_epi["guide_seq"], max_chars=20, key="epi_guide_in").upper().strip()
+        with ep_c3:
+            effector_options = list(EFFECTOR_PROFILES.keys())
+            eff_idx = effector_options.index(active_epi["effector"]) if active_epi["effector"] in effector_options else 0
+            selected_eff = st.selectbox(
+                "Effector Fusion Construct",
+                effector_options,
+                index=eff_idx,
+                format_func=lambda k: f"{EFFECTOR_PROFILES[k].name} ({EFFECTOR_PROFILES[k].modality.value})",
+                key="epi_eff_select"
+            )
+        with ep_c4:
+            dist_tss = st.number_input(
+                "Distance to TSS (bp)",
+                value=int(active_epi["distance_to_tss_bp"]),
+                min_value=-1000,
+                max_value=1000,
+                step=5,
+                help="Negative values = Upstream Promoter (CRISPRa target). Positive values = Downstream Exon 1 / Gene Body (CRISPRi target).",
+                key="epi_dist_input"
+            )
+
+        if len(epi_guide) == 20:
+            epi_res = simulate_epigenetic_modulation(
+                gene_symbol=epi_gene,
+                guide_seq=epi_guide,
+                distance_to_tss_bp=int(dist_tss),
+                effector_key=selected_eff,
+                guide_efficiency_score=88.0
+            )
+
+            # Executive Glassmorphic Metric Displays
+            em1, em2, em3, em4 = st.columns(4)
+            with em1:
+                delta_str = "Induction" if epi_res.modality == ModulationModality.ACTIVATION else "Repression"
+                st.metric("Predicted Fold Change", f"{epi_res.predicted_fold_change}x", delta=delta_str)
+            with em2:
+                st.metric("log2 Fold Change", f"{epi_res.log2_fold_change:+0.2f}", delta=f"{epi_res.percent_modulation:+0.1f}%")
+            with em3:
+                st.metric("Residual Expression", f"{epi_res.retained_expression_pct}%", delta="Relative to WT")
+            with em4:
+                st.metric("Window Factor", f"{int(epi_res.window_attenuation_factor*100)}%", delta="Spatial Alignment")
+
+            # Status Banner
+            if epi_res.is_in_optimal_window:
+                st.markdown(f"""
+                <div class="glass-card" style="border-left: 4px solid #10B981;">
+                    <h4 style="margin: 0 0 6px 0; color: #6EE7B7;">✅ Optimal Epigenetic Window Clearance</h4>
+                    <p style="margin: 0; color: #CBD5E1; font-size: 0.95rem;">{epi_res.clinical_recommendation}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="glass-card" style="border-left: 4px solid #F59E0B;">
+                    <h4 style="margin: 0 0 6px 0; color: #FCD34D;">⚠️ Sub-Optimal Distance from TSS</h4>
+                    <p style="margin: 0; color: #CBD5E1; font-size: 0.95rem;">
+                        Guide at {dist_tss} bp is outside the canonical optimal window. Spatial attenuation factor is {int(epi_res.window_attenuation_factor*100)}%.
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Interactive Plotly Promoter Attenuation Landscape
+            st.markdown("#### 📈 Promoter Distance Attenuation Landscape (-600 bp to +500 bp from TSS)")
+            curve_data = generate_promoter_window_profile(
+                gene_symbol=epi_gene,
+                effector_key=selected_eff,
+                step_bp=20
+            )
+            cdf = pd.DataFrame(curve_data)
+
+            fig_epi = go.Figure()
+
+            # Optimal Window Shading
+            cur_eff = EFFECTOR_PROFILES[selected_eff]
+            fig_epi.add_vrect(
+                x0=cur_eff.optimal_window_start_bp,
+                x1=cur_eff.optimal_window_end_bp,
+                fillcolor="rgba(99, 102, 241, 0.12)",
+                layer="below",
+                line_width=1,
+                line_color="rgba(129, 140, 248, 0.4)",
+                annotation_text="Optimal Activity Window",
+                annotation_position="top left",
+                annotation_font_color="#A5B4FC"
+            )
+
+            # Transcription Start Site vertical reference
+            fig_epi.add_vline(
+                x=0,
+                line_width=2,
+                line_dash="dash",
+                line_color="#F43F5E",
+                annotation_text="TSS (0 bp)",
+                annotation_position="bottom right",
+                annotation_font_color="#FDA4AF"
+            )
+
+            # Predicted Curve Line
+            y_col = "predicted_fold_change" if cur_eff.modality == ModulationModality.ACTIVATION else "predicted_fold_change"
+            fig_epi.add_trace(go.Scatter(
+                x=cdf["distance_from_tss_bp"],
+                y=cdf[y_col],
+                mode="lines",
+                name="Promoter Response Curve",
+                line=dict(color="#6366F1", width=3),
+                hovertemplate="TSS Distance: %{x} bp<br>Fold Change: %{y}x<extra></extra>"
+            ))
+
+            # Active Guide Pinpoint Marker
+            fig_epi.add_trace(go.Scatter(
+                x=[epi_res.distance_to_tss_bp],
+                y=[epi_res.predicted_fold_change],
+                mode="markers+text",
+                name="Selected sgRNA Position",
+                text=[f"Current Guide ({epi_res.distance_to_tss_bp} bp)"],
+                textposition="top center",
+                textfont=dict(color="#F8FAFC", size=12),
+                marker=dict(size=14, color="#10B981", symbol="diamond", line=dict(color="#FFFFFF", width=2))
+            ))
+
+            fig_epi.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(15, 23, 42, 0.6)",
+                plot_bgcolor="rgba(30, 41, 59, 0.3)",
+                height=340,
+                margin=dict(l=40, r=40, t=30, b=40),
+                xaxis=dict(title="Distance from Transcription Start Site (TSS) [bp]", gridcolor="rgba(255, 255, 255, 0.05)"),
+                yaxis=dict(title="Predicted Fold Change (vs. WT)", gridcolor="rgba(255, 255, 255, 0.05)")
+            )
+            st.plotly_chart(fig_epi, use_container_width=True)
+
+            # Clinical Delivery & Biophysical Details Card
+            st.markdown("#### 🧬 Delivery Feasibility & Mechanistic Insights")
+            d_c1, d_c2 = st.columns(2)
+            with d_c1:
+                st.markdown(f"""
+                <div class="glass-card">
+                    <h5 style="color: #818CF8; margin: 0 0 8px 0;">📦 In-Vivo Delivery Compatibility</h5>
+                    <p style="margin: 0 0 6px 0;"><strong>Construct Size:</strong> <code>{cur_eff.delivery_size_kb} kb</code></p>
+                    <p style="margin: 0 0 6px 0;"><strong>Packaging Assessment:</strong> {epi_res.delivery_feasibility}</p>
+                    <p style="margin: 0; color: #94A3B8; font-size: 0.88rem;">
+                        Standard AAV limits single-vector packaging to 4.7 kb. Larger effectors (SunTag, VPR, SAM) require dual-vector trans-splicing or mRNA lipid nanoparticles (LNPs).
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            with d_c2:
+                st.markdown(f"""
+                <div class="glass-card">
+                    <h5 style="color: #2DD4BF; margin: 0 0 8px 0;">🔬 Chromatin Architecture & Epigenetic Marks</h5>
+                    <p style="margin: 0 0 6px 0;"><strong>Recruited Mark:</strong> <code>{cur_eff.epigenetic_mark}</code></p>
+                    <p style="margin: 0 0 6px 0;"><strong>Off-Target Risk:</strong> {epi_res.off_target_epigenetic_risk}</p>
+                    <p style="margin: 0; color: #94A3B8; font-size: 0.88rem;">
+                        {cur_eff.description}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            if epi_res.biophysical_notes:
+                for note in epi_res.biophysical_notes:
+                    st.caption(f"💡 {note}")
+        else:
+            st.warning("Enter a 20-nucleotide guide spacer sequence to model epigenetic modulation.")
+
+    # ---------------- SUBTAB 5: BASE EDITING (CBE / ABE) SIMULATOR ----------------
+    with studio_subtab5:
         st.subheader("🎯 Precision Base Editing (CBE & ABE) & Bystander Mutation Simulator")
         st.caption(
             "Model Cytosine (C·G &rarr; T·A) and Adenine (A·T &rarr; G·C) deamination windows without double-stranded breaks. "
@@ -1707,8 +2008,8 @@ with tab4:
         else:
             st.warning("Enter a 20-nucleotide protospacer sequence to simulate base editing.")
 
-    # ---------------- SUBTAB 5: PRIME EDITING (pegRNA) ARCHITECT ----------------
-    with studio_subtab5:
+    # ---------------- SUBTAB 6: PRIME EDITING (pegRNA) ARCHITECT ----------------
+    with studio_subtab6:
         st.subheader("🧬 Prime Editing (pegRNA) Architect (Search-and-Replace Genome Editing)")
         st.caption(
             "Automate the design of prime editing guide RNAs (pegRNAs). Generates Reverse Transcription Template (RTT) "
@@ -1792,8 +2093,8 @@ with tab4:
         else:
             st.info("Enter a 20-nt spacer and desired edit sequence to synthesize the pegRNA.")
 
-    # ---------------- SUBTAB 6: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
-    with studio_subtab6:
+    # ---------------- SUBTAB 7: IN-SILICO LIVE MUTATION SCRATCHPAD ----------------
+    with studio_subtab7:
         st.subheader("🧬 In-Silico Live Mutation Scratchpad (Reactive DNA Synthesizer)")
         st.caption("Interactively edit individual nucleotides to preview on-target cleavage efficiency, GC stability, and binding thermodynamics in real-time:")
 
@@ -1851,8 +2152,8 @@ with tab4:
         else:
             st.info(f"Enter exactly 20 nucleotides to activate live biophysical telemetry ({len(scratch_seq)}/20 entered).")
 
-    # ---------------- SUBTAB 7: HEAD-TO-HEAD DUEL ----------------
-    with studio_subtab7:
+    # ---------------- SUBTAB 8: HEAD-TO-HEAD DUEL ----------------
+    with studio_subtab8:
         st.subheader("⚔️ Head-to-Head Multi-Guide Duel")
         st.caption("Compare two candidate sgRNAs side-by-side to select the optimal clinical lead:")
 

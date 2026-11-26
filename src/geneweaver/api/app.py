@@ -50,6 +50,15 @@ from geneweaver.biology.variant_analyzer import (
     audit_patient_variants,
     get_clinvar_benchmark_variants,
 )
+from geneweaver.biology.epigenetic import (
+    ModulationModality,
+    EffectorDomain,
+    EffectorProfile,
+    EFFECTOR_PROFILES,
+    simulate_epigenetic_modulation,
+    generate_promoter_window_profile,
+    get_clinical_epigenetic_presets
+)
 from geneweaver.biology.gene_search import search_genes_and_diseases, extract_and_design_sgrnas_for_gene, GENE_DATABASE
 
 app = FastAPI(
@@ -168,6 +177,14 @@ class AlleleSelectivityRequest(BaseModel):
     mutant_seq: str = Field(..., examples=["GTCCTGCAGGTTCCACGGGT"])
     snp_pos_in_window: int = Field(15, ge=1, le=20, examples=[15])
     pam_motif: str = Field("NGG", examples=["NGG"])
+
+
+class EpigeneticModulationRequest(BaseModel):
+    gene_symbol: str = Field("HBG1", description="Target gene symbol", examples=["HBG1"])
+    guide_sequence: str = Field(..., description="Target guide spacer (20 nt)", examples=["GGTCAACTTTCCTCTCACAC"])
+    distance_to_tss_bp: int = Field(..., description="Distance in bp from TSS (negative = upstream promoter, positive = downstream)", examples=[-115])
+    effector_key: str = Field("dcas9_vpr", description="Effector fusion key: dcas9_vpr, dcas9_suntag, dcas9_sam, dcas9_krab, dcas9_krab_mecp2")
+    guide_efficiency_score: float = Field(85.0, ge=0.0, le=100.0, description="Predicted on-target binding efficiency score")
 
 
 # ----------------- API ENDPOINTS -----------------
@@ -628,3 +645,67 @@ def allele_selectivity_endpoint(req: AlleleSelectivityRequest):
 @app.get("/api/v1/variants/benchmarks", summary="Get Pre-loaded ClinVar / dbSNP Benchmark Variants")
 def get_benchmarks_endpoint():
     return get_clinvar_benchmark_variants()
+
+
+@app.post("/api/v1/epigenetics/modulate", summary="Simulate Epigenetic CRISPRa / CRISPRi Transcriptional Modulation")
+def modulate_epigenetic_endpoint(req: EpigeneticModulationRequest):
+    try:
+        clean_g = validate_and_clean_guide(req.guide_sequence, expected_length=20)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    res = simulate_epigenetic_modulation(
+        gene_symbol=req.gene_symbol,
+        guide_seq=clean_g,
+        distance_to_tss_bp=req.distance_to_tss_bp,
+        effector_key=req.effector_key,
+        guide_efficiency_score=req.guide_efficiency_score
+    )
+
+    return {
+        "gene_symbol": res.gene_symbol,
+        "modality": res.modality.value,
+        "effector_name": res.effector_name,
+        "guide_seq": res.guide_seq,
+        "distance_to_tss_bp": res.distance_to_tss_bp,
+        "is_in_optimal_window": res.is_in_optimal_window,
+        "window_attenuation_factor": res.window_attenuation_factor,
+        "predicted_fold_change": res.predicted_fold_change,
+        "log2_fold_change": res.log2_fold_change,
+        "percent_modulation": res.percent_modulation,
+        "retained_expression_pct": res.retained_expression_pct,
+        "off_target_epigenetic_risk": res.off_target_epigenetic_risk,
+        "delivery_feasibility": res.delivery_feasibility,
+        "clinical_recommendation": res.clinical_recommendation,
+        "biophysical_notes": res.biophysical_notes
+    }
+
+
+@app.get("/api/v1/epigenetics/effectors", summary="List Available CRISPRa / CRISPRi Epigenetic Effector Profiles")
+def list_epigenetic_effectors():
+    return {
+        k: {
+            "name": v.name,
+            "modality": v.modality.value,
+            "domain": v.domain.value,
+            "max_fold_modulation": v.max_fold_modulation,
+            "optimal_window_start_bp": v.optimal_window_start_bp,
+            "optimal_window_end_bp": v.optimal_window_end_bp,
+            "peak_distance_bp": v.peak_distance_bp,
+            "epigenetic_mark": v.epigenetic_mark,
+            "delivery_size_kb": v.delivery_size_kb,
+            "description": v.description
+        }
+        for k, v in EFFECTOR_PROFILES.items()
+    }
+
+
+@app.get("/api/v1/epigenetics/presets", summary="List Curated Clinical Epigenetic Modulation Benchmarks")
+def list_epigenetic_presets():
+    return get_clinical_epigenetic_presets()
+
+
+@app.get("/api/v1/epigenetics/promoter-curve", summary="Generate TSS Promoter Distance Modulation Curve Points")
+def get_promoter_curve(gene_symbol: str = "HBG1", effector_key: str = "dcas9_vpr", step_bp: int = 25):
+    return generate_promoter_window_profile(gene_symbol=gene_symbol, effector_key=effector_key, step_bp=step_bp)
+
